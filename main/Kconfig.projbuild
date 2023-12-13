@@ -1,0 +1,282 @@
+menu "JIRIPOCA CONFIGURATION"
+    menu "Altimeter Configuration"
+        config DROGUE_THRESHOLD
+            int "Drogue Threshold"
+            default 20
+            help
+                Difference in altitude to trigger drogue chute.
+        config MAIN_ALTITUDE
+            int "Main Deployment Altitude"
+            default 500
+            help
+                Altitude from ground to trigger main chute.
+        config TIMEZONE
+            int "Timezone"
+            default -3
+            help
+                Timezone in hours.
+        config MAX_SD_FILES
+            int "Max SD files"
+            default 16
+            help
+                Max number of files in SD Card.
+        config MAX_LFS_FILES
+            int "Max LittleFS files"
+            default 8
+            help
+                Max number of files in LittleFS.
+        config SD_BUFFER_SIZE
+            int "SD Buffer Size"
+            default 512
+            help
+                Number of bytes to write at once to SD Card. Must be a multiple of 64.
+        config SD_FORMAT_IF_MOUNT_FAILED
+            bool "Format SD Card if mount failed"
+            default y
+            help
+                Format SD Card if mount failed.
+        config LITTLEFS_BUFFER_SIZE
+            int "LittleFS Buffer Size"
+            default 512
+            help
+                Number of bytes to write at once to LittleFS. Must be a multiple of 64.
+        config LORA_BUFFER_SIZE
+            int "LoRa Buffer Size"
+            range 1 255
+            default 192
+            help
+                Number of bytes to write at once to LoRa. Maximum is 255. Must be a multiple of 64.
+    endmenu
+    menu "GPIO Configuration"
+        config BUZZER_GPIO
+            int "Buzzer GPIO Number"
+            default 32
+            help
+                GPIO number for Buzzer.
+        config LED_GPIO
+            int "LED GPIO Number"
+            default 33
+            help
+                GPIO number for LED.
+        config BUTTON_GPIO
+            int "Button GPIO Number"
+            default 34
+            help
+                GPIO number for Button.
+        config DROGUE_CHUTE_GPIO
+            int "Drogue Chute GPIO Number"
+            default 26
+            help
+                GPIO number for Drogue Chute Deployment.
+        config MAIN_CHUTE_GPIO
+            int "Main Chute GPIO Number"
+            default 25
+            help
+                GPIO number for Main Chute Deployment.
+        config RBF_GPIO
+            int "RBF GPIO Number"
+            default 27
+            help
+                GPIO number for Remove Before Flight switch.
+        config NMEA_PARSER_UART_RXD
+            int "GPS UART RXD pin number"
+            range ENV_GPIO_RANGE_MIN ENV_GPIO_IN_RANGE_MAX
+            default 16
+            help
+                GPIO number for GPS UART RX pin.
+        menu "I2C GPIO"
+            config I2C_SCL_GPIO
+                int "I2C SCL GPIO Number"
+                default 5 if IDF_TARGET_ESP8266
+                default 6 if IDF_TARGET_ESP32C3
+                default 22 if IDF_TARGET_ESP32 || IDF_TARGET_ESP32S2 || IDF_TARGET_ESP32S3
+                help
+                    GPIO number for I2C Master clock line. Used for MPU6050 and BMP280.
+            config I2C_SDA_GPIO
+                int "I2C SDA GPIO Number"
+                default 4 if IDF_TARGET_ESP8266
+                default 5 if IDF_TARGET_ESP32C3
+                default 21 if IDF_TARGET_ESP32 || IDF_TARGET_ESP32S2 || IDF_TARGET_ESP32S3
+                help
+                    GPIO number for I2C Master data line. Used for MPU6050 and BMP280.
+        endmenu
+        menu "SD Card GPIO"
+            config SD_PIN_MOSI
+                int "MOSI GPIO number"
+                default 13 if IDF_TARGET_ESP32
+                default 35 if IDF_TARGET_ESP32S2
+                default 35 if IDF_TARGET_ESP32S3
+                default 5  if IDF_TARGET_ESP32H2
+                default 4  # C3 and others
+                help
+                    GPIO number for SD card MOSI pin.
+        
+            config SD_PIN_MISO
+                int "MISO GPIO number"
+                default 12 if IDF_TARGET_ESP32
+                default 37 if IDF_TARGET_ESP32S2
+                default 37 if IDF_TARGET_ESP32S3
+                default 0  if IDF_TARGET_ESP32H2
+                default 6  # C3 and others
+                help
+                    GPIO number for SD card MISO pin.
+        
+            config SD_PIN_CLK
+                int "CLK GPIO number"
+                default 14 if IDF_TARGET_ESP32
+                default 36 if IDF_TARGET_ESP32S2
+                default 36 if IDF_TARGET_ESP32S3
+                default 4  if IDF_TARGET_ESP32H2
+                default 5  # C3 and others
+                help
+                    GPIO number for SD card CLK pin.
+        
+            config SD_PIN_CS
+                int "CS GPIO number"
+                default 15 if IDF_TARGET_ESP32
+                default 34 if IDF_TARGET_ESP32S2
+                default 34 if IDF_TARGET_ESP32S3
+                default 1  # C3 and others
+                help
+                    GPIO number for SD card CS (or SS) pin.
+        endmenu
+    endmenu
+    menu "MPU6050"
+        choice MPU6050_I2C_ADDRESS
+            prompt "Select MPU6050 address"
+            default MPU6050_I2C_ADDRESS_LOW
+            help
+                Select I2C address
+            config MPU6050_I2C_ADDRESS_LOW
+                bool "MPU6050_I2C_ADDRESS_LOW"
+                help
+                    Choose this when ADDR pin is connected to ground
+            config MPU6050_I2C_ADDRESS_HIGH
+                bool "MPU6050_I2C_ADDRESS_HIGH"
+                help
+                    Choose this when ADDR pin is connected to VCC
+        endchoice
+    endmenu
+    menu "LoRa"
+        config LORA_ADVANCED
+            bool "Enable Advanced settings"
+            default false
+            help
+                Enable Advanced settings.
+    
+        config LORA_CODING_RATE
+            depends on LORA_ADVANCED
+            int "Error coding rate"
+            range 1 4
+            default 1
+            help
+                Error coding rate.
+    
+        config LORA_BANDWIDTH
+            depends on LORA_ADVANCED
+            int "Signal Bandwidth"
+            range 0 9
+            default 7
+            help
+                Signal Bandwidth.
+    
+        config LORA_SF_RATE
+            depends on LORA_ADVANCED
+            int "Spreading Factor"
+            range 5 12
+            default 7
+            help
+                Spreading Factor.
+    
+    endmenu
+    menu "GPS NMEA PARSER"
+        orsource "$IDF_PATH/examples/common_components/env_caps/$IDF_TARGET/Kconfig.env_caps"
+        config NMEA_PARSER_BAUD_RATE
+            int "NMEA Parser Baud Rate"
+            default 9600
+            help
+                Baud rate of UART port used for GPS. Default is 9600, can be changed to 115200.
+        
+        config NMEA_PARSER_RING_BUFFER_SIZE
+            int "NMEA Parser Ring Buffer Size"
+            range 0 2048
+            default 1024
+            help
+                Size of the ring buffer used for UART Rx channel.
+    
+        config NMEA_PARSER_TASK_STACK_SIZE
+            int "NMEA Parser Task Stack Size"
+            range 0 4096
+            default 3072
+            help
+                Stack size of NMEA Parser task.
+    
+        config NMEA_PARSER_TASK_PRIORITY
+            int "NMEA Parser Task Priority"
+            range 0 24
+            default 2
+            help
+                Priority of NMEA Parser task.
+    
+        menu "NMEA Statement Support"
+            comment "At least one statement must be selected"
+            config NMEA_STATEMENT_GGA
+                bool "GGA Statement"
+                default y
+                help
+                    Enabling this option will parse the following parameter from GGA statement:
+    
+                    - Latitude, Longitude, Altitude;
+                    - Number of satellites in use, fix status (no fix, GPS, DGPS), UTC time;
+    
+            config NMEA_STATEMENT_GSA
+                bool "GSA Statement"
+                default y
+                help
+                    Enabling this option will parse the following parameter from GSA statement:
+    
+                    - Position/Vertical/Horizontal dilution of precision;
+                    - Fix mode (no fix, 2D, 3D fix);
+                    - IDs of satellites in use;
+    
+            config NMEA_STATEMENT_GSV
+                bool "GSV Statement"
+                default y
+                help
+                    Enabling this option will parse the following parameter from GSV statement:
+    
+                    - Number of satellites in view;
+                    - Optional details of each satellite in view;
+    
+            config NMEA_STATEMENT_RMC
+                bool "RMC Statement"
+                default y
+                help
+                    Enabling this option will parse the following parameter from RMC statement:
+    
+                    - Validity of GPS signal;
+                    - Ground speed (knots) and course over ground (degrees);
+                    - Magnetic variation;
+                    - UTC date;
+    
+            config NMEA_STATEMENT_GLL
+                bool "GLL Statement"
+                default y
+                help
+                    Enabling this option will parse the following parameter from GLL statement:
+    
+                    - Latitude, Longitude;
+                    - UTC time;
+    
+            config NMEA_STATEMENT_VTG
+                bool "VTG Statement"
+                default y
+                help
+                    Enabling this option will parse the following parameter from VTG statement:
+    
+                    - Ground speed (knots, km/h) and course over ground (degrees);
+                    - Magnetic variation;
+        endmenu
+    endmenu
+endmenu
+

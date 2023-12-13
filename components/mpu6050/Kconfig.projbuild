@@ -1,0 +1,5 @@
+menu "mpu6050 address"
+    config AUTO_CONFIG_ADDR
+        bool "configure mpu6050 addr at run time"
+        default false    
+endmenu

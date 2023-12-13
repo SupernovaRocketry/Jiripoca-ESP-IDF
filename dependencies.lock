@@ -1,0 +1,21 @@
+dependencies:
+  dernasherbrezon/sx127x:
+    component_hash: 769dd8ff2bef19bc396ffc4e9afdf2323178fa84b7b15f74745a6c0470f0441d
+    source:
+      service_url: https://api.components.espressif.com/
+      type: service
+    version: 3.1.0
+  idf:
+    component_hash: null
+    source:
+      type: idf
+    version: 5.1.2
+  joltwallet/littlefs:
+    component_hash: 1d8f346fe94debb00483f76d04b6648083f2d3505da811beccdbd0bd1f6c24cd
+    source:
+      service_url: https://api.components.espressif.com/
+      type: service
+    version: 1.11.0
+manifest_hash: fd1f29066c2e3af0e5f114194401c971d298fe86c6c9edf0f97a3ec02a69646d
+target: esp32
+version: 1.0.0
