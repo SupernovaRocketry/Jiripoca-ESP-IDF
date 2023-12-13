@@ -1,6 +1,6 @@
 build/
-.devcontainer/
 managed_components/
+.devcontainer/
 
 *.DS_Store
 */.cache
