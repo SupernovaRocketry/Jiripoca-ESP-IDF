@@ -405,9 +405,9 @@ void task_lora(void *pvParameters)
     ESP_ERROR_CHECK(sx127x_set_frequency(CONFIG_SX127X_FREQUENCY, device));
     ESP_ERROR_CHECK(sx127x_lora_reset_fifo(device)); // Reset transmit buffer
     ESP_ERROR_CHECK(sx127x_set_opmod(SX127x_MODE_STANDBY, SX127x_MODULATION_LORA, device));
-    ESP_ERROR_CHECK(sx127x_lora_set_bandwidth(SX127x_BW_500000, device)); // Set bandwidth
+    ESP_ERROR_CHECK(sx127x_lora_set_bandwidth(SX127X_BW, device)); // Set bandwidth
     ESP_ERROR_CHECK(sx127x_lora_set_implicit_header(NULL, device));
-    ESP_ERROR_CHECK(sx127x_lora_set_modem_config_2(SX127x_SF_9, device)); // Set spreading factor
+    ESP_ERROR_CHECK(sx127x_lora_set_modem_config_2(SX127X_SF, device)); // Set spreading factor
     ESP_ERROR_CHECK(sx127x_lora_set_syncword(18, device));
     ESP_ERROR_CHECK(sx127x_set_preamble_length(8, device));
     sx127x_tx_set_callback(tx_callback, device); // Set callback function that is called when sx127x finishes transmitting
@@ -440,29 +440,34 @@ void task_lora(void *pvParameters)
     while (1)
     {
         data_t data;
-        data_t buffer[CONFIG_SX127X_BUFFER_SIZE / sizeof(data_t)];
-
-        xQueueReceive(xLoraQueue, &data, portMAX_DELAY);
 #ifdef CONFIG_SX127X_MODE_BUFFER
+        data_t buffer[CONFIG_SX127X_BUFFER_SIZE / sizeof(data_t)];
         // Read data from queue and put it in fifo
         for (int i = 0; i < CONFIG_SX127X_BUFFER_SIZE / sizeof(data_t); i++)
         {
+            xQueueReceive(xLoraQueue, &data, portMAX_DELAY);
             buffer[i] = data;
         }
-#endif
         xSemaphoreTake(xTXMutex, portMAX_DELAY);
         if (tx_ready == pdTRUE)
         {
-#ifdef CONFIG_SX127X_MODE_BUFFER
             ESP_ERROR_CHECK(sx127x_lora_tx_set_for_transmission(buffer, sizeof(buffer), device));
             ESP_LOGI(TAG_SX127X, "sending %d byte packet", CONFIG_SX127X_BUFFER_SIZE);
-#else
-            ESP_ERROR_CHECK(sx127x_lora_tx_set_for_transmission(&data, sizeof(data_t), device));
-            ESP_LOGI(TAG_SX127X, "sending %d byte packet", sizeof(data_t));
-#endif
             ESP_ERROR_CHECK(sx127x_set_opmod(SX127x_MODE_TX, SX127x_MODULATION_LORA, device)); // Set sx127x to transmit mode
             tx_ready = pdFALSE;
         }
         xSemaphoreGive(xTXMutex);
+#else
+        xQueueReceive(xLoraQueue, &data, portMAX_DELAY);
+        xSemaphoreTake(xTXMutex, portMAX_DELAY);
+        if (tx_ready == pdTRUE)
+        {
+            ESP_ERROR_CHECK(sx127x_lora_tx_set_for_transmission(&data, sizeof(data_t), device));
+            ESP_LOGI(TAG_SX127X, "sending %d byte packet", sizeof(data_t));
+            ESP_ERROR_CHECK(sx127x_set_opmod(SX127x_MODE_TX, SX127x_MODULATION_LORA, device)); // Set sx127x to transmit mode
+            tx_ready = pdFALSE;
+        }
+        xSemaphoreGive(xTXMutex);
+#endif
     }
 }

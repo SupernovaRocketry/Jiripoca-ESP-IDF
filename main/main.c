@@ -84,7 +84,6 @@ void task_deploy(void *pvParameters)
                 ESP_LOGW(TAG_DEPLOY, "Drogue deployed");
                 vTaskDelay(pdMS_TO_TICKS(1000));
                 gpio_set_level(CONFIG_DROGUE_CHUTE_GPIO, 0);
-
             }
             else
                 xSemaphoreGive(xStatusMutex);
@@ -160,6 +159,7 @@ void task_buzzer_led(void *pvParameters)
         }
     }
 }
+
 
 void app_main(void)
 {
@@ -292,7 +292,7 @@ void app_main(void)
             if (!(STATUS & SAFE_MODE) && gpio_get_level(CONFIG_RBF_GPIO) == 0) // If not in safe mode and RBF is off
             {
                 xTaskCreate(task_deploy, "Deploy", configMINIMAL_STACK_SIZE * 2, NULL, 5, NULL); // Start deploy task
-                STATUS |= ARMED;                                                             // Set ARMED
+                STATUS |= ARMED;                                                                 // Set ARMED
             }
         }
         xSemaphoreGive(xStatusMutex);

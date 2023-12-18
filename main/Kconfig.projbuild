@@ -170,46 +170,105 @@ menu "JIRIPOCA CONFIGURATION"
             help
                 sx127X frequency.
         config SX127X_MODE_BUFFER
-                bool "Enable LoRa Buffer Mode"
+                bool "Enable Buffered Mode"
                 default y
                 help
-                   Enable sending data in buffer mode.
+                   Enable sending data in buffered mode.
         config SX127X_BUFFER_SIZE
             depends on SX127X_MODE_BUFFER
-            int "LoRa Buffer Size"
+            int "Buffer Size"
             range 1 255
             default 192
             help
-                Number of bytes to write at once to LoRa. Maximum is 255. Must be a multiple of 64.
+                Number of bytes to write at once to LoRa. Maximum is 255.
         config SX127X_ADVANCED
             bool "Enable Advanced settings"
             default false
             help
                 Enable Advanced settings.
-    
-        config SX127X_CODING_RATE
+        choice SX127X_BW
             depends on SX127X_ADVANCED
-            int "Error coding rate"
-            range 1 4
-            default 1
+            prompt "Signal Bandwidth"
+            default SX127X_BW_125000
             help
-                Error coding rate.
-    
-        config SX127X_BANDWIDTH
+                Select sx127X signal bandwidth
+            config SX127X_BW_7800
+                bool "7800 Hz"
+                help
+                    Set signal bandwidth to 7800 Hz
+            config SX127X_BW_10400
+                bool "10400 Hz"
+                help
+                    Set signal bandwidth to 10400 Hz
+            config SX127X_BW_15600
+                bool "15600 Hz"
+                help
+                    Set signal bandwidth to 15600 Hz
+            config SX127X_BW_20800
+                bool "20800 Hz"
+                help
+                    Set signal bandwidth to 20800 Hz
+            config SX127X_BW_31250
+                bool "31250 Hz"
+                help
+                    Set signal bandwidth to 31250 Hz
+            config SX127X_BW_41700
+                bool "41700 Hz"
+                help
+                    Set signal bandwidth to 41700 Hz
+            config SX127X_BW_62500
+                bool "62500 Hz"
+                help
+                    Set signal bandwidth to 62500 Hz
+            config SX127X_BW_125000
+                bool "125000 Hz"
+                help
+                    Set signal bandwidth to 125000 Hz
+            config SX127X_BW_250000
+                bool "250000 Hz"
+                help
+                    Set signal bandwidth to 250000 Hz
+            config SX127X_BW_500000
+                bool "500000 Hz"
+                help
+                    Set signal bandwidth to 500000 Hz
+        endchoice
+        choice SX127X_SF_RATE
             depends on SX127X_ADVANCED
-            int "Signal Bandwidth"
-            range 0 9
-            default 7
+            prompt "Spreading Factor"
+            default SX127X_SF_9
             help
-                Signal Bandwidth.
-    
-        config SX127X_SF_RATE
-            depends on SX127X_ADVANCED
-            int "Spreading Factor"
-            range 5 12
-            default 7
-            help
-                Spreading Factor.
+                Select sx127X spreading factor
+            config SX127X_SF_6
+                bool "6"
+                help
+                    Set spreading factor to 6
+            config SX127X_SF_7
+                bool "7"
+                help
+                    Set spreading factor to 7
+            config SX127X_SF_8
+                bool "8"
+                help
+                    Set spreading factor to 8
+            config SX127X_SF_9
+                bool "9"
+                help
+                    Set spreading factor to 9
+            config SX127X_SF_10
+                bool "10"
+                help
+                    Set spreading factor to 10
+            config SX127X_SF_11
+                bool "11"
+                help
+                    Set spreading factor to 11
+            config SX127X_SF_12
+                bool "12"
+                help
+                    Set spreading factor to 12
+        endchoice
+
     endmenu
     menu "SD Card Configuration"
         config MAX_SD_FILES
