@@ -12,6 +12,7 @@
 #define SAFE_MODE (1 << 1)
 #define FLYING (1 << 2)
 #define CUTOFF (1 << 3)
+
 #define DROGUE_DEPLOYED (1 << 4)
 #define MAIN_DEPLOYED (1 << 5)
 #define LANDED (1 << 6)
@@ -56,7 +57,7 @@ extern SemaphoreHandle_t xGPSMutex;
 extern SemaphoreHandle_t xStatusMutex;
 
 // Status
-extern int32_t STATUS;
+extern uint32_t STATUS;
 
 // GPS object
 extern gps_t gps;

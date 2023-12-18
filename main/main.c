@@ -37,7 +37,11 @@
 #include "mpu6050.h"
 #include "esp_littlefs.h"
 #include "nmea_parser.h"
-#include "lora.h"
+
+#include <driver/spi_common.h>
+#include <driver/spi_master.h>
+#include <esp_intr_alloc.h>
+#include <sx127x.h>
 
 // Include other sources
 #include "acquire.h"
@@ -76,11 +80,11 @@ void task_deploy(void *pvParameters)
                 STATUS |= DROGUE_DEPLOYED;
                 xSemaphoreGive(xStatusMutex);
 
-                // Deploy drogue
                 gpio_set_level(CONFIG_DROGUE_CHUTE_GPIO, 1);
                 ESP_LOGW(TAG_DEPLOY, "Drogue deployed");
                 vTaskDelay(pdMS_TO_TICKS(1000));
                 gpio_set_level(CONFIG_DROGUE_CHUTE_GPIO, 0);
+
             }
             else
                 xSemaphoreGive(xStatusMutex);
@@ -92,7 +96,6 @@ void task_deploy(void *pvParameters)
                 STATUS |= MAIN_DEPLOYED;
                 xSemaphoreGive(xStatusMutex);
 
-                // Deploy main
                 gpio_set_level(CONFIG_MAIN_CHUTE_GPIO, 1);
                 ESP_LOGW(TAG_DEPLOY, "Main deployed");
                 vTaskDelay(pdMS_TO_TICKS(1000));
@@ -274,10 +277,10 @@ void app_main(void)
     }
 
     // Start tasks
-    xTaskCreate(task_acquire, "Acquire", configMINIMAL_STACK_SIZE * 2, NULL, 5, NULL);
-    xTaskCreate(task_sd, "SD", configMINIMAL_STACK_SIZE * 3, &counter_sd, 5, NULL);
-    xTaskCreate(task_littlefs, "LittleFS", configMINIMAL_STACK_SIZE * 3, &counter_lfs, 5, NULL);
-    xTaskCreate(task_lora, "Lora", configMINIMAL_STACK_SIZE * 3, NULL, 5, NULL);
+    xTaskCreate(task_acquire, "Acquire", configMINIMAL_STACK_SIZE * 4, NULL, 5, NULL);
+    xTaskCreate(task_sd, "SD", configMINIMAL_STACK_SIZE * 4, &counter_sd, 5, NULL);
+    xTaskCreate(task_littlefs, "LittleFS", configMINIMAL_STACK_SIZE * 4, &counter_lfs, 5, NULL);
+    xTaskCreate(task_lora, "Lora", configMINIMAL_STACK_SIZE * 4, NULL, 5, NULL);
     xTaskCreate(task_buzzer_led, "Buzzer LED", configMINIMAL_STACK_SIZE * 2, NULL, 1, NULL);
 
     while (1)
@@ -288,7 +291,7 @@ void app_main(void)
         {
             if (!(STATUS & SAFE_MODE) && gpio_get_level(CONFIG_RBF_GPIO) == 0) // If not in safe mode and RBF is off
             {
-                xTaskCreate(task_deploy, "Deploy", configMINIMAL_STACK_SIZE, NULL, 5, NULL); // Start deploy task
+                xTaskCreate(task_deploy, "Deploy", configMINIMAL_STACK_SIZE * 2, NULL, 5, NULL); // Start deploy task
                 STATUS |= ARMED;                                                             // Set ARMED
             }
         }

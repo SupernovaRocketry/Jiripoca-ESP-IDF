@@ -17,7 +17,10 @@
 #include "esp_vfs_fat.h"
 #include "esp_littlefs.h"
 #include "nmea_parser.h"
-#include "lora.h"
+#include "driver/spi_common.h"
+#include "driver/spi_master.h"
+#include "esp_intr_alloc.h"
+#include "sx127x.h"
 
 #include "save_send.h"
 #include "common.h"
@@ -25,6 +28,13 @@
 // TAGS
 static const char *TAG_LITTLEFS = "LittleFS";
 static const char *TAG_SD = "SD Card";
+static const char *TAG_SX127X = "sx127x";
+
+// sx127x
+sx127x *device = NULL;
+TaskHandle_t handle_interrupt;
+int32_t tx_ready = pdFALSE;
+SemaphoreHandle_t xTXMutex;
 
 // write_gps_time writes GPS time to file
 void write_gps_time(char log_name[32])
@@ -323,61 +333,136 @@ void task_littlefs(void *pvParameters)
     }
 }
 
+// handle_interrupt_fromisr resumes handle_interrupt_task
+void IRAM_ATTR handle_interrupt_fromisr(void *arg)
+{
+    xTaskResumeFromISR(handle_interrupt);
+}
+
+// handle_interrupt_task handles interrupts from sx127x
+void handle_interrupt_task(void *arg)
+{
+    while (1)
+    {
+        vTaskSuspend(NULL);
+        sx127x_handle_interrupt((sx127x *)arg);
+    }
+}
+
+// tx_callback is called when sx127x is ready to transmit
+void tx_callback(sx127x *device)
+{
+    xSemaphoreTake(xTXMutex, portMAX_DELAY);
+    tx_ready = pdTRUE;
+    xSemaphoreGive(xTXMutex);
+    ESP_LOGI(TAG_SX127X, "tx ready");
+}
+
 // task_lora reads data from queue and sends it to Lora module
 void task_lora(void *pvParameters)
 {
-    // Lora INIT
-    if (lora_init() == 0)
+    // sx127x INIT
+    // Reset pin init
+    gpio_reset_pin(CONFIG_SX127X_RST);
+    gpio_set_direction(CONFIG_SX127X_RST, GPIO_MODE_OUTPUT);
+
+    // Mutex for tx_ready
+    xTXMutex = xSemaphoreCreateMutex();
+
+    ESP_LOGI(TAG_SX127X, "starting up");
+
+    // SPI init
+    spi_bus_config_t config = {
+        .mosi_io_num = CONFIG_SX127X_MOSI,
+        .miso_io_num = CONFIG_SX127X_MISO,
+        .sclk_io_num = CONFIG_SX127X_SCK,
+        .quadwp_io_num = -1,
+        .quadhd_io_num = -1,
+        .max_transfer_sz = 0,
+    };
+    ESP_ERROR_CHECK(spi_bus_initialize(SPI3_HOST, &config, SPI_DMA_CH_AUTO));
+
+    // SPI device init
+    spi_device_interface_config_t dev_cfg = {
+        .clock_speed_hz = 9E6,
+        .spics_io_num = CONFIG_SX127X_SS,
+        .queue_size = 16,
+        .command_bits = 0,
+        .address_bits = 8,
+        .dummy_bits = 0,
+        .mode = 0};
+    spi_device_handle_t spi_device;
+    ESP_ERROR_CHECK(spi_bus_add_device(SPI3_HOST, &dev_cfg, &spi_device));
+
+    // Lora reset
+    gpio_set_level(CONFIG_SX127X_RST, 0);
+    vTaskDelay(pdMS_TO_TICKS(1));
+    gpio_set_level(CONFIG_SX127X_RST, 1);
+    vTaskDelay(pdMS_TO_TICKS(10));
+
+    ESP_ERROR_CHECK(sx127x_create(spi_device, &device));
+    ESP_ERROR_CHECK(sx127x_set_opmod(SX127x_MODE_SLEEP, SX127x_MODULATION_LORA, device));
+    ESP_ERROR_CHECK(sx127x_set_frequency(CONFIG_SX127X_FREQUENCY, device));
+    ESP_ERROR_CHECK(sx127x_lora_reset_fifo(device)); // Reset transmit buffer
+    ESP_ERROR_CHECK(sx127x_set_opmod(SX127x_MODE_STANDBY, SX127x_MODULATION_LORA, device));
+    ESP_ERROR_CHECK(sx127x_lora_set_bandwidth(SX127x_BW_500000, device)); // Set bandwidth
+    ESP_ERROR_CHECK(sx127x_lora_set_implicit_header(NULL, device));
+    ESP_ERROR_CHECK(sx127x_lora_set_modem_config_2(SX127x_SF_9, device)); // Set spreading factor
+    ESP_ERROR_CHECK(sx127x_lora_set_syncword(18, device));
+    ESP_ERROR_CHECK(sx127x_set_preamble_length(8, device));
+    sx127x_tx_set_callback(tx_callback, device); // Set callback function that is called when sx127x finishes transmitting
+
+    // Create interrupt handling task and interrupt
+    BaseType_t task_code = xTaskCreatePinnedToCore(handle_interrupt_task, "handle interrupt", 8196, device, 2, &handle_interrupt, xPortGetCoreID());
+    if (task_code != pdPASS)
     {
-        ESP_LOGE(pcTaskGetName(NULL), "Does not recognize the module");
-        while (1)
-        {
-            vTaskDelay(1);
-        }
+        ESP_LOGE(TAG_SX127X, "can't create task %d", task_code);
+        sx127x_destroy(device);
+        return;
     }
+    gpio_set_direction((gpio_num_t)CONFIG_SX127X_DIO0, GPIO_MODE_INPUT);
+    gpio_pulldown_en((gpio_num_t)CONFIG_SX127X_DIO0);
+    gpio_pullup_dis((gpio_num_t)CONFIG_SX127X_DIO0);
+    gpio_set_intr_type((gpio_num_t)CONFIG_SX127X_DIO0, GPIO_INTR_POSEDGE);
+    gpio_install_isr_service(0);
+    gpio_isr_handler_add((gpio_num_t)CONFIG_SX127X_DIO0, handle_interrupt_fromisr, (void *)device);
 
-    ESP_LOGI(pcTaskGetName(NULL), "Frequency is 915MHz");
-    lora_set_frequency(915e6); // 915MHz
-    lora_enable_crc();
+    // Set TX config
+    ESP_ERROR_CHECK(sx127x_tx_set_pa_config(SX127x_PA_PIN_BOOST, CONFIG_SX127X_POWER, device));
+    sx127x_tx_header_t header = {
+        .enable_crc = true,
+        .coding_rate = SX127x_CR_4_5};
+    ESP_ERROR_CHECK(sx127x_lora_tx_set_explicit_header(&header, device));
+    ESP_ERROR_CHECK(sx127x_tx_set_pa_config(SX127x_PA_PIN_BOOST, 20, device));
 
-    int cr = 1;
-    int bw = 7;
-    int sf = 7;
-#if CONFIG_LORA_ADVANCED
-    cr = CONFIG_LORA_CODING_RATE;
-    bw = CONFIG_LORA_BANDWIDTH;
-    sf = CONFIG_LORA_SF_RATE;
-#endif
-    lora_set_coding_rate(cr);
-    ESP_LOGI(pcTaskGetName(NULL), "coding_rate=%d", cr);
-
-    lora_set_bandwidth(bw);
-    ESP_LOGI(pcTaskGetName(NULL), "bandwidth=%d", bw);
-
-    lora_set_spreading_factor(sf);
-    ESP_LOGI(pcTaskGetName(NULL), "spreading_factor=%d", sf);
-    ESP_LOGI(pcTaskGetName(NULL), "Start");
+    tx_callback(device);
 
     while (1)
     {
         data_t data;
-        data_t buffer[CONFIG_LORA_BUFFER_SIZE / sizeof(data_t)];
+        data_t buffer[CONFIG_SX127X_BUFFER_SIZE / sizeof(data_t)];
 
-        // Read data from queue and build packet
-        for (int i = 0; i < CONFIG_LORA_BUFFER_SIZE / sizeof(data_t); i++)
+        xQueueReceive(xLoraQueue, &data, portMAX_DELAY);
+#ifdef CONFIG_SX127X_MODE_BUFFER
+        // Read data from queue and put it in fifo
+        for (int i = 0; i < CONFIG_SX127X_BUFFER_SIZE / sizeof(data_t); i++)
         {
-            xQueueReceive(xLoraQueue, &data, portMAX_DELAY);
             buffer[i] = data;
         }
-
-        lora_send_packet(buffer, CONFIG_LORA_BUFFER_SIZE); // Send packet
-
-        ESP_LOGI(pcTaskGetName(NULL), "%d byte packet sent...", CONFIG_LORA_BUFFER_SIZE);
-
-        int lost = lora_packet_lost(); // Check if packet was lost
-        if (lost != 0)
+#endif
+        xSemaphoreTake(xTXMutex, portMAX_DELAY);
+        if (tx_ready == pdTRUE)
         {
-            ESP_LOGW(pcTaskGetName(NULL), "%d packets lost", lost);
+#ifdef CONFIG_SX127X_MODE_BUFFER
+            ESP_ERROR_CHECK(sx127x_lora_tx_set_for_transmission(buffer, sizeof(buffer), device));
+            ESP_LOGI(TAG_SX127X, "sending %d byte packet", CONFIG_SX127X_BUFFER_SIZE);
+#else
+            ESP_ERROR_CHECK(sx127x_lora_tx_set_for_transmission(&data, sizeof(data_t), device));
+            ESP_LOGI(TAG_SX127X, "sending %d byte packet", sizeof(data_t));
+#endif
+            ESP_ERROR_CHECK(sx127x_set_opmod(SX127x_MODE_TX, SX127x_MODULATION_LORA, device)); // Set sx127x to transmit mode
+            tx_ready = pdFALSE;
         }
+        xSemaphoreGive(xTXMutex);
     }
 }

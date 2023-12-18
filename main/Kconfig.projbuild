@@ -15,37 +15,6 @@ menu "JIRIPOCA CONFIGURATION"
             default -3
             help
                 Timezone in hours.
-        config MAX_SD_FILES
-            int "Max SD files"
-            default 16
-            help
-                Max number of files in SD Card.
-        config MAX_LFS_FILES
-            int "Max LittleFS files"
-            default 8
-            help
-                Max number of files in LittleFS.
-        config SD_BUFFER_SIZE
-            int "SD Buffer Size"
-            default 512
-            help
-                Number of bytes to write at once to SD Card. Must be a multiple of 64.
-        config SD_FORMAT_IF_MOUNT_FAILED
-            bool "Format SD Card if mount failed"
-            default y
-            help
-                Format SD Card if mount failed.
-        config LITTLEFS_BUFFER_SIZE
-            int "LittleFS Buffer Size"
-            default 512
-            help
-                Number of bytes to write at once to LittleFS. Must be a multiple of 64.
-        config LORA_BUFFER_SIZE
-            int "LoRa Buffer Size"
-            range 1 255
-            default 192
-            help
-                Number of bytes to write at once to LoRa. Maximum is 255. Must be a multiple of 64.
     endmenu
     menu "GPIO Configuration"
         config BUZZER_GPIO
@@ -140,8 +109,40 @@ menu "JIRIPOCA CONFIGURATION"
                 help
                     GPIO number for SD card CS (or SS) pin.
         endmenu
+        menu "sx127x GPIO"
+            config SX127X_SCK
+                int "sx127x SCK"
+                default 18
+                help
+                    GPIO number for sx127x SCK pin.
+            config SX127X_MISO
+                int "sx127x MISO"
+                default 19
+                help
+                    GPIO number for sx127x MISO pin.
+            config SX127X_MOSI
+                int "sx127x MOSI"
+                default 23
+                help
+                    GPIO number for sx127x MOSI pin.
+            config SX127X_SS
+                int "sx127x SS"
+                default 5
+                help
+                    GPIO number for sx127x Slave Select pin.
+            config SX127X_RST
+                int "sx127x Reset"
+                default 2
+                help
+                    GPIO number for sx127x Reset pin.
+            config SX127X_DIO0
+                int "sx127x DIO0"
+                default 4
+                help
+                    GPIO number for sx127x DIO0 pin.
+        endmenu
     endmenu
-    menu "MPU6050"
+    menu "MPU6050 Configuration"
         choice MPU6050_I2C_ADDRESS
             prompt "Select MPU6050 address"
             default MPU6050_I2C_ADDRESS_LOW
@@ -157,39 +158,89 @@ menu "JIRIPOCA CONFIGURATION"
                     Choose this when ADDR pin is connected to VCC
         endchoice
     endmenu
-    menu "LoRa"
-        config LORA_ADVANCED
+    menu "sx127X Configuration"
+        config SX127X_POWER
+            int "Tx Power, in dBm"
+            default 20
+            help
+                sx127X transmit power.
+        config SX127X_FREQUENCY
+            int "Frequency, in Hz"
+            default 915000000
+            help
+                sx127X frequency.
+        config SX127X_MODE_BUFFER
+                bool "Enable LoRa Buffer Mode"
+                default y
+                help
+                   Enable sending data in buffer mode.
+        config SX127X_BUFFER_SIZE
+            depends on SX127X_MODE_BUFFER
+            int "LoRa Buffer Size"
+            range 1 255
+            default 192
+            help
+                Number of bytes to write at once to LoRa. Maximum is 255. Must be a multiple of 64.
+        config SX127X_ADVANCED
             bool "Enable Advanced settings"
             default false
             help
                 Enable Advanced settings.
     
-        config LORA_CODING_RATE
-            depends on LORA_ADVANCED
+        config SX127X_CODING_RATE
+            depends on SX127X_ADVANCED
             int "Error coding rate"
             range 1 4
             default 1
             help
                 Error coding rate.
     
-        config LORA_BANDWIDTH
-            depends on LORA_ADVANCED
+        config SX127X_BANDWIDTH
+            depends on SX127X_ADVANCED
             int "Signal Bandwidth"
             range 0 9
             default 7
             help
                 Signal Bandwidth.
     
-        config LORA_SF_RATE
-            depends on LORA_ADVANCED
+        config SX127X_SF_RATE
+            depends on SX127X_ADVANCED
             int "Spreading Factor"
             range 5 12
             default 7
             help
                 Spreading Factor.
-    
     endmenu
-    menu "GPS NMEA PARSER"
+    menu "SD Card Configuration"
+        config MAX_SD_FILES
+            int "Max SD files"
+            default 16
+            help
+                Max number of files in SD Card.
+        config SD_BUFFER_SIZE
+            int "SD Buffer Size"
+            default 512
+            help
+                Number of bytes to write at once to SD Card. Must be a multiple of 64.
+        config SD_FORMAT_IF_MOUNT_FAILED
+            bool "Format SD Card if mount failed"
+            default y
+            help
+                Format SD Card if mount failed.    
+    endmenu
+    menu "LittleFS Configuration"
+        config MAX_LFS_FILES
+            int "Max LittleFS files"
+            default 8
+            help
+                Max number of files in LittleFS.
+        config LITTLEFS_BUFFER_SIZE
+            int "LittleFS Buffer Size"
+            default 512
+            help
+                Number of bytes to write at once to LittleFS. Must be a multiple of 64.
+    endmenu
+    menu "GPS NMEA PARSER Configuration"
         orsource "$IDF_PATH/examples/common_components/env_caps/$IDF_TARGET/Kconfig.env_caps"
         config NMEA_PARSER_BAUD_RATE
             int "NMEA Parser Baud Rate"

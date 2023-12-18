@@ -18,7 +18,7 @@ SemaphoreHandle_t xGPSMutex = NULL;
 SemaphoreHandle_t xStatusMutex = NULL;
 
 // Status
-int32_t STATUS = 0;
+uint32_t STATUS = 0;
 
 // GPS object
 gps_t gps;
