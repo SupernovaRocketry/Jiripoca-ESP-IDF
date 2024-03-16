@@ -8,7 +8,6 @@
 
 // Global vars
 // Queues
-QueueHandle_t xAltQueue = NULL;
 QueueHandle_t xLittleFSQueue = NULL;
 QueueHandle_t xSDQueue = NULL;
 QueueHandle_t xLoraQueue = NULL;

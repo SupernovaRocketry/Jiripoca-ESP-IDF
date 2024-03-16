@@ -1,6 +1,6 @@
 #
 # Automatically generated file. DO NOT EDIT.
-# Espressif IoT Development Framework (ESP-IDF)  Project Configuration
+# Espressif IoT Development Framework (ESP-IDF) 5.1.2 Project Configuration
 #
 CONFIG_SOC_BROWNOUT_RESET_SUPPORTED="Not determined"
 CONFIG_SOC_TWAI_BRP_DIV_SUPPORTED="Not determined"
@@ -347,8 +347,6 @@ CONFIG_PARTITION_TABLE_MD5=y
 #
 # Altimeter Configuration
 #
-CONFIG_DROGUE_THRESHOLD=20
-CONFIG_MAIN_ALTITUDE=500
 CONFIG_TIMEZONE=-3
 # end of Altimeter Configuration
 
@@ -358,8 +356,6 @@ CONFIG_TIMEZONE=-3
 CONFIG_BUZZER_GPIO=32
 CONFIG_LED_GPIO=33
 CONFIG_BUTTON_GPIO=34
-CONFIG_DROGUE_CHUTE_GPIO=26
-CONFIG_MAIN_CHUTE_GPIO=25
 CONFIG_RBF_GPIO=27
 CONFIG_NMEA_PARSER_UART_RXD=16
 

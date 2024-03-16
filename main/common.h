@@ -8,14 +8,7 @@
 #include "freertos/semphr.h"
 
 // Status flags
-#define ARMED (1 << 0)
-#define SAFE_MODE (1 << 1)
-#define FLYING (1 << 2)
-#define CUTOFF (1 << 3)
 
-#define DROGUE_DEPLOYED (1 << 4)
-#define MAIN_DEPLOYED (1 << 5)
-#define LANDED (1 << 6)
 #define LFS_FULL (1 << 7)
 
 // Data structure to store sensor data

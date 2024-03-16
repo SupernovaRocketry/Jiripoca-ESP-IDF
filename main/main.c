@@ -48,68 +48,6 @@
 #include "save_send.h"
 #include "common.h"
 
-// Tags
-static const char *TAG_DEPLOY = "Deploy";
-
-// task_deploy deploys parachutes
-void task_deploy(void *pvParameters)
-{
-    float current_altitude = 0;
-    float max_altitude = 0;
-    float start_altitude = 0;
-
-    xQueueReceive(xAltQueue, &current_altitude, portMAX_DELAY);
-    start_altitude = current_altitude;
-
-    while (1)
-    {
-        // Get current altitude
-        xQueueReceive(xAltQueue, &current_altitude, portMAX_DELAY);
-
-        // Update max altitude
-        if (current_altitude > max_altitude)
-        {
-            max_altitude = current_altitude;
-        }
-
-        xSemaphoreTake(xStatusMutex, portMAX_DELAY);
-        if (!(STATUS & DROGUE_DEPLOYED)) // If drogue not deployed
-        {
-            if (current_altitude < max_altitude - CONFIG_DROGUE_THRESHOLD) // If altitude is DROGUE_THRESHOLD below max altitude
-            {
-                STATUS |= DROGUE_DEPLOYED;
-                xSemaphoreGive(xStatusMutex);
-
-                gpio_set_level(CONFIG_DROGUE_CHUTE_GPIO, 1);
-                ESP_LOGW(TAG_DEPLOY, "Drogue deployed");
-                vTaskDelay(pdMS_TO_TICKS(1000));
-                gpio_set_level(CONFIG_DROGUE_CHUTE_GPIO, 0);
-            }
-            else
-                xSemaphoreGive(xStatusMutex);
-        }
-        else if (!(STATUS & MAIN_DEPLOYED)) // If drogue deployed but main not deployed
-        {
-            if (current_altitude < start_altitude + CONFIG_MAIN_ALTITUDE) // If altitude is MAIN_ALTITUDE above start altitude
-            {
-                STATUS |= MAIN_DEPLOYED;
-                xSemaphoreGive(xStatusMutex);
-
-                gpio_set_level(CONFIG_MAIN_CHUTE_GPIO, 1);
-                ESP_LOGW(TAG_DEPLOY, "Main deployed");
-                vTaskDelay(pdMS_TO_TICKS(1000));
-                gpio_set_level(CONFIG_MAIN_CHUTE_GPIO, 0);
-
-                // Delete task
-                vTaskDelete(NULL);
-            }
-            else
-                xSemaphoreGive(xStatusMutex);
-        }
-        else
-            xSemaphoreGive(xStatusMutex);
-    }
-}
 
 // task_buzzer_led blinks LED and beeps buzzer to indicate status
 void task_buzzer_led(void *pvParameters)
@@ -128,38 +66,10 @@ void task_buzzer_led(void *pvParameters)
 
     while (1)
     {
-        // Use local copy of STATUS because of delays
-        xSemaphoreTake(xStatusMutex, portMAX_DELAY);
-        int32_t status_local = STATUS;
-        xSemaphoreGive(xStatusMutex);
-
-        // If ARMED, blink LED and beep buzzer three times
-        if (status_local & ARMED)
-        {
-            static uint32_t i = 0;
-            while (i++ < 3)
-            {
-                gpio_set_level(CONFIG_LED_GPIO, 1);
-                gpio_set_level(CONFIG_BUZZER_GPIO, 1);
-                vTaskDelay(pdMS_TO_TICKS(1000));
-                gpio_set_level(CONFIG_LED_GPIO, 0);
-                gpio_set_level(CONFIG_BUZZER_GPIO, 0);
-                vTaskDelay(pdMS_TO_TICKS(100));
-            }
-        }
-        // If LANDED, blink LED every second
-        if (status_local & LANDED)
-        {
-            gpio_set_level(CONFIG_LED_GPIO, 1);
-            gpio_set_level(CONFIG_BUZZER_GPIO, 1);
-            vTaskDelay(pdMS_TO_TICKS(1000));
-            gpio_set_level(CONFIG_LED_GPIO, 0);
-            gpio_set_level(CONFIG_BUZZER_GPIO, 0);
-            vTaskDelay(pdMS_TO_TICKS(1000));
-        }
+        vTaskDelay(pdMS_TO_TICKS(1000));
     }
+    
 }
-
 
 void app_main(void)
 {
@@ -169,12 +79,6 @@ void app_main(void)
 
     gpio_reset_pin(CONFIG_LED_GPIO);
     gpio_set_direction(CONFIG_LED_GPIO, GPIO_MODE_OUTPUT);
-
-    gpio_reset_pin(CONFIG_DROGUE_CHUTE_GPIO);
-    gpio_set_direction(CONFIG_DROGUE_CHUTE_GPIO, GPIO_MODE_OUTPUT);
-
-    gpio_reset_pin(CONFIG_MAIN_CHUTE_GPIO);
-    gpio_set_direction(CONFIG_MAIN_CHUTE_GPIO, GPIO_MODE_OUTPUT);
 
     gpio_reset_pin(CONFIG_RBF_GPIO);
     gpio_set_direction(CONFIG_RBF_GPIO, GPIO_MODE_INPUT);
@@ -205,7 +109,6 @@ void app_main(void)
     xStatusMutex = xSemaphoreCreateMutex();
 
     // Create Queues
-    xAltQueue = xQueueCreate(10, sizeof(float));
     xLittleFSQueue = xQueueCreate(10, sizeof(data_t));
     xSDQueue = xQueueCreate(10, sizeof(data_t));
     xLoraQueue = xQueueCreate(10, sizeof(data_t));
@@ -268,14 +171,6 @@ void app_main(void)
         esp_restart();
     }
 
-    // If RBF is off at startup, set SAFE_MODE
-    if (gpio_get_level(CONFIG_RBF_GPIO) == 0)
-    {
-        xSemaphoreTake(xStatusMutex, portMAX_DELAY);
-        STATUS |= SAFE_MODE;
-        xSemaphoreGive(xStatusMutex);
-    }
-
     // Start tasks
     xTaskCreate(task_acquire, "Acquire", configMINIMAL_STACK_SIZE * 4, NULL, 5, NULL);
     xTaskCreate(task_sd, "SD", configMINIMAL_STACK_SIZE * 4, &counter_sd, 5, NULL);
@@ -285,18 +180,6 @@ void app_main(void)
 
     while (1)
     {
-        // Logic for arming parachute deployment
-        xSemaphoreTake(xStatusMutex, portMAX_DELAY);
-        if (!(STATUS & ARMED)) // If not armed
-        {
-            if (!(STATUS & SAFE_MODE) && gpio_get_level(CONFIG_RBF_GPIO) == 0) // If not in safe mode and RBF is off
-            {
-                xTaskCreate(task_deploy, "Deploy", configMINIMAL_STACK_SIZE * 2, NULL, 5, NULL); // Start deploy task
-                STATUS |= ARMED;                                                                 // Set ARMED
-            }
-        }
-        xSemaphoreGive(xStatusMutex);
-
         vTaskDelay(pdMS_TO_TICKS(100));
     }
 }

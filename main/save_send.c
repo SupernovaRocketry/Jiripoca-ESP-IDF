@@ -155,21 +155,6 @@ void task_sd(void *pvParameters)
         for (int i = 0; i < CONFIG_SD_BUFFER_SIZE / sizeof(data_t); i++)
         {
             // Check if landed
-            xSemaphoreTake(xStatusMutex, portMAX_DELAY);
-            if (STATUS & LANDED)
-            {
-                xSemaphoreGive(xStatusMutex);
-
-                write_gps_time(log_name);
-
-                ESP_LOGW(TAG_SD, "Landed, unmounting SD card");
-                esp_vfs_fat_sdcard_unmount(mount_point, card);
-                ESP_LOGI(TAG_SD, "Card unmounted");
-                vTaskDelete(NULL); // Delete task
-            }
-            else
-                xSemaphoreGive(xStatusMutex);
-
             xQueueReceive(xSDQueue, &data, portMAX_DELAY);
             buffer[i] = data;
         }
@@ -266,21 +251,6 @@ void task_littlefs(void *pvParameters)
         for (int i = 0; i < CONFIG_LITTLEFS_BUFFER_SIZE / sizeof(data_t); i++)
         {
             // Check if landed
-            xSemaphoreTake(xStatusMutex, portMAX_DELAY);
-            if (STATUS & LANDED)
-            {
-                xSemaphoreGive(xStatusMutex);
-
-                write_gps_time(log_name);
-
-                ESP_LOGW(TAG_LITTLEFS, "Landed, unmounting LittleFS");
-                esp_vfs_littlefs_unregister(conf.partition_label);
-                ESP_LOGI(TAG_LITTLEFS, "LittleFS unmounted");
-                vTaskDelete(NULL);
-            }
-            else
-                xSemaphoreGive(xStatusMutex);
-
             xQueueReceive(xLittleFSQueue, &data, portMAX_DELAY);
             buffer[i] = data;
         }

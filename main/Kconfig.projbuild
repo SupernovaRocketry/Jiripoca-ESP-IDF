@@ -1,15 +1,5 @@
 menu "JIRIPOCA CONFIGURATION"
     menu "Altimeter Configuration"
-        config DROGUE_THRESHOLD
-            int "Drogue Threshold"
-            default 20
-            help
-                Difference in altitude to trigger drogue chute.
-        config MAIN_ALTITUDE
-            int "Main Deployment Altitude"
-            default 500
-            help
-                Altitude from ground to trigger main chute.
         config TIMEZONE
             int "Timezone"
             default -3
@@ -32,16 +22,6 @@ menu "JIRIPOCA CONFIGURATION"
             default 34
             help
                 GPIO number for Button.
-        config DROGUE_CHUTE_GPIO
-            int "Drogue Chute GPIO Number"
-            default 26
-            help
-                GPIO number for Drogue Chute Deployment.
-        config MAIN_CHUTE_GPIO
-            int "Main Chute GPIO Number"
-            default 25
-            help
-                GPIO number for Main Chute Deployment.
         config RBF_GPIO
             int "RBF GPIO Number"
             default 27

@@ -51,58 +51,6 @@ static void gps_event_handler(void *event_handler_arg, esp_event_base_t event_ba
     }
 }
 
-// status_checks checks if the rocket is flying, motor is cutoff, or landed
-void status_checks(data_t *data)
-{
-    // Check if accel is higher than FLYING_THRESHOLD
-    if (!(data->status & FLYING))
-    {
-        if (fabs(data->accel.x) > FLYING_THRESHOLD || fabs(data->accel.y) > FLYING_THRESHOLD || fabs(data->accel.z) > FLYING_THRESHOLD)
-        {
-            xSemaphoreTake(xStatusMutex, portMAX_DELAY);
-            STATUS |= FLYING;
-            xSemaphoreGive(xStatusMutex);
-        }
-    }
-
-    // Check if accel is lower than CUTOFF_THRESHOLD
-    if ((data->status & FLYING) && !(data->status & CUTOFF))
-    {
-        if (fabs(data->accel.x) < CUTOFF_THRESHOLD && fabs(data->accel.y) < CUTOFF_THRESHOLD && fabs(data->accel.z) < CUTOFF_THRESHOLD)
-        {
-            xSemaphoreTake(xStatusMutex, portMAX_DELAY);
-            STATUS |= CUTOFF;
-            xSemaphoreGive(xStatusMutex);
-        }
-    }
-
-    // Check if landed by comparing altitude to altitude 5 seconds ago
-    if ((data->status & FLYING) && !(data->status & LANDED))
-    {
-        static float aux_altitude = 0;
-        static int64_t aux_time = 0;
-        if (esp_timer_get_time() - aux_time > 5000000) // If 5 seconds have passed since last check
-        {
-            if (aux_time == 0) // If first time checking, set aux_time and aux_altitude
-            {
-                aux_time = esp_timer_get_time();
-                aux_altitude = data->bmp_altitude;
-            }
-            else if (fabs(data->bmp_altitude - aux_altitude) < LANDED_THRESHOLD) // If altitude has not changed more than LANDED_THRESHOLD, consider landed
-            {
-                xSemaphoreTake(xStatusMutex, portMAX_DELAY);
-                STATUS |= LANDED;
-                xSemaphoreGive(xStatusMutex);
-            }
-            else // If altitude has changed more than LANDED_THRESHOLD, update aux_time and aux_altitude
-            {
-                aux_time = esp_timer_get_time();
-                aux_altitude = data->bmp_altitude;
-            }
-        }
-    }
-}
-
 // acquire_data reads data from sensors and GPS
 void acquire_data(data_t *data, bmp280_t *dev_bmp, mpu6050_dev_t *dev_mpu)
 {
@@ -162,14 +110,10 @@ void acquire_data(data_t *data, bmp280_t *dev_bmp, mpu6050_dev_t *dev_mpu)
 // send_queues sends data to queues
 void send_queues(data_t *data)
 {
-    if (!(data->status & LANDED)) // If not landed, send to queues
-    {
-        if ((data->status & ARMED)) // If armed, send to task_deploy
-            xQueueSend(xAltQueue, &data->bmp_altitude, 0);
-        xQueueSend(xSDQueue, data, 0);  // Send to SD card queue
-        if (!(data->status & LFS_FULL)) // If LittleFS is not full, send to LittleFS queue
-            xQueueSend(xLittleFSQueue, data, 0);
-    }
+    xQueueSend(xSDQueue, data, 0);  // Send to SD card queue
+    if (!(data->status & LFS_FULL)) // If LittleFS is not full, send to LittleFS queue
+        xQueueSend(xLittleFSQueue, data, 0);
+
     xQueueSend(xLoraQueue, data, 0); // Always send to Lora queue
 
     ESP_LOGI("Acquire", "Data sent to queues");
@@ -219,8 +163,6 @@ void task_acquire(void *pvParameters)
         data_t data;
 
         acquire_data(&data, &dev_bmp, &dev_mpu);
-
-        status_checks(&data);
 
         send_queues(&data);
 
