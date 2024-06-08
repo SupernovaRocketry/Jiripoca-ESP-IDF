@@ -1,9 +1,3 @@
-#include <stdint.h>
-#include "mpu6050.h"
-#include "nmea_parser.h"
-#include "freertos/queue.h"
-#include "freertos/semphr.h"
-
 #include "common.h"
 
 // Global vars
@@ -16,9 +10,7 @@ QueueHandle_t xLoraQueue = NULL;
 // Mutexes
 SemaphoreHandle_t xGPSMutex = NULL;
 SemaphoreHandle_t xStatusMutex = NULL;
+SemaphoreHandle_t xI2CMutex = NULL;
 
 // Status
 uint32_t STATUS = 0;
-
-// GPS object
-gps_t gps;

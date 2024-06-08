@@ -9,6 +9,7 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
+#include "common.h"
 
 #include "esp_types.h"
 #include "esp_event.h"
@@ -145,7 +146,7 @@ typedef void *nmea_parser_handle_t;
     {                                             \
         .uart = {                                 \
             .uart_port = UART_NUM_1,              \
-            .rx_pin = CONFIG_NMEA_PARSER_UART_RXD,\
+            .rx_pin = GPS_RX,\
             .baud_rate = 9600,                    \
             .data_bits = UART_DATA_8_BITS,        \
             .parity = UART_PARITY_DISABLE,        \
