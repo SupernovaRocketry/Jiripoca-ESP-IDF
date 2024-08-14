@@ -21,13 +21,11 @@
 
 // ALTIMETER BOARD
 #ifdef CONFIG_ALTIMETER_VERSION_ASR3000_V3
-//#define ENABLE_GPS
+#define ENABLE_GPS
 #define ENABLE_MPU9250
-//#define ENABLE_I2CDEV
-//#define ENABLE_BMP280
 #define ENABLE_BMX280
-//#define ENABLE_LORA
-//#define ENABLE_E220
+#define ENABLE_LORA
+#define ENABLE_E220
 #define ENABLE_ALED
 #define ENABLE_ADC
 
@@ -38,15 +36,15 @@
 #define DROGUE_GPIO 48
 #define MAIN_GPIO 47
 #define RBF_GPIO 4
-#define GPS_RX 21
+#define GPS_RX 14
 #define I2C_SCL 9
 #define I2C_SDA 8
 #define SD_MOSI 11
 #define SD_MISO 13
 #define SD_SCK 12
 #define SD_CS 10
-#define E220_RX 35
-#define E220_TX 36
+#define E220_RX 36
+#define E220_TX 35
 #define E220_AUX 37
 
 #elif CONFIG_ALTIMETER_VERSION_ASR3000_V2
@@ -120,6 +118,9 @@ typedef struct
 } file_counter_t;
 
 // Global vars
+//Tasks
+extern TaskHandle_t xTaskLora;
+
 // Queues
 extern QueueHandle_t xAltQueue;
 extern QueueHandle_t xLittleFSQueue;

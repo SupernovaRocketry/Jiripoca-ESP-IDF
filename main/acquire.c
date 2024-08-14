@@ -5,55 +5,109 @@ static const char *TAG_GPS = "GPS";
 static const char *TAG_ACQ = "Acquire";
 
 #ifdef ENABLE_GPS
-// gps_event_handler runs every time GPS data is received
-static void gps_event_handler(void *event_handler_arg, esp_event_base_t event_base, int32_t event_id, void *event_data)
+void task_nmea(void *pvParameters)
 {
-    switch (event_id)
+    data_t *ackdata = (data_t *)pvParameters;
+
+    uart_config_t uart_config = {
+        .baud_rate = 115200,
+        .data_bits = UART_DATA_8_BITS,
+        .parity = UART_PARITY_DISABLE,
+        .stop_bits = UART_STOP_BITS_1,
+        .flow_ctrl = UART_HW_FLOWCTRL_DISABLE};
+    ESP_ERROR_CHECK(uart_param_config(UART_NUM_1, &uart_config));
+    ESP_ERROR_CHECK(uart_set_pin(UART_NUM_1,
+                                 UART_PIN_NO_CHANGE, GPS_RX,
+                                 UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE));
+    ESP_ERROR_CHECK(uart_driver_install(UART_NUM_1, 1024 * 2, 0, 0, NULL, 0));
+
+    // Configure a temporary buffer for the incoming data
+    char *buffer = (char *)malloc(1024 + 1);
+    size_t total_bytes = 0;
+    while (1)
     {
-    case GPS_UPDATE:
-        xSemaphoreTake(xGPSMutex, portMAX_DELAY);
-        gps = *(gps_t *)event_data;
-        /*
-        // Print information parsed from GPS statements
-        ESP_LOGI(TAG_GPS, "%d/%d/%d %d:%d:%d => \r\n"
-                         "\t\t\t\t\t\tlatitude   = %.05f°N\r\n"
-                         "\t\t\t\t\t\tlongitude = %.05f°E\r\n"
-                         "\t\t\t\t\t\taltitude   = %.02fm\r\n"
-                         "\t\t\t\t\t\tspeed      = %fm/s\r\n"
-                         "\t\t\t\t\t\tsatellite  = %d",
-                 gps.date.year + 2000, gps.date.month, gps.date.day,
-                 gps.tim.hour + CONFIG_TIMEZONE, gps.tim.minute, gps.tim.second,
-                 gps.latitude, gps.longitude, gps.altitude, gps.speed, gps.sats_in_view);
-        */
-        xSemaphoreGive(xGPSMutex);
-        break;
-    case GPS_UNKNOWN:
-        // Print unknown statements
-        ESP_LOGW(TAG_GPS, "Unknown statement:%s", (char *)event_data);
-        break;
-    default:
-        break;
+
+        // Read data from the UART
+        int read_bytes = uart_read_bytes(UART_NUM_1,
+                                         (uint8_t *)buffer + total_bytes,
+                                         1024 - total_bytes, pdMS_TO_TICKS(20));
+        if (read_bytes <= 0)
+        {
+            continue;
+        }
+
+        nmea_s *data;
+        total_bytes += read_bytes;
+
+        /* find start (a dollar sign) */
+        char *start = memchr(buffer, '$', total_bytes);
+        if (start == NULL)
+        {
+            total_bytes = 0;
+            continue;
+        }
+
+        /* find end of line */
+        char *end = memchr(start, '\r', total_bytes - (start - buffer));
+        if (NULL == end || '\n' != *(++end))
+        {
+            continue;
+        }
+        end[-1] = NMEA_END_CHAR_1;
+        end[0] = NMEA_END_CHAR_2;
+
+        /* handle data */
+        data = nmea_parse(start, end - start + 1, 0);
+        if (data == NULL)
+        {
+            ESP_LOGI(TAG_GPS, "Failed to parse the sentence!\n");
+            ESP_LOGI(TAG_GPS, "  Type: %.5s (%d)\n", start + 1, nmea_get_type(start));
+        }
+        else
+        {
+            if (data->errors != 0)
+            {
+                ESP_LOGI(TAG_GPS, "WARN: The sentence struct contains parse errors!");
+            }
+
+            if (NMEA_GPGGA == data->type)
+            {
+                nmea_gpgga_s *gpgga = (nmea_gpgga_s *)data;
+                ackdata->latitude = gpgga->latitude.degrees + gpgga->latitude.minutes / 60;
+                if (gpgga->latitude.cardinal == NMEA_CARDINAL_DIR_SOUTH)
+                {
+                    ackdata->latitude = -ackdata->latitude;
+                }
+                ackdata->longitude = gpgga->longitude.degrees + gpgga->longitude.minutes / 60;
+                if (gpgga->longitude.cardinal == NMEA_CARDINAL_DIR_WEST)
+                {
+                    ackdata->longitude = -ackdata->longitude;
+                }
+                ackdata->gps_altitude = gpgga->altitude;
+            }
+            nmea_free(data);
+        }
+
+        // buffer empty?
+        if (end == buffer + total_bytes)
+        {
+            total_bytes = 0;
+            continue;
+        }
+
+        // copy rest of buffer to beginning
+        if (buffer != memmove(buffer, end, total_bytes - (end - buffer)))
+        {
+            total_bytes = 0;
+            continue;
+        }
+
+        total_bytes -= end - buffer;
+
+        vTaskDelay(pdMS_TO_TICKS(180));
     }
 }
 
-void init_nmea_parser()
-{
-    nmea_parser_config_t config = NMEA_PARSER_CONFIG_DEFAULT(); // NMEA parser configuration
-    config.uart.baud_rate = CONFIG_NMEA_PARSER_BAUD_RATE;
-    nmea_parser_handle_t nmea_hdl = nmea_parser_init(&config);  // init NMEA parser library
-    nmea_parser_add_handler(nmea_hdl, gps_event_handler, NULL); // register event handler for NMEA parser library
-}
-
-// acquire_data reads data from sensors and GPS
-void acquire_gps(data_t *data)
-{
-    // GPS read
-    xSemaphoreTake(xGPSMutex, portMAX_DELAY);
-    data->latitude = gps.latitude;
-    data->longitude = gps.longitude;
-    data->gps_altitude = gps.altitude;
-    xSemaphoreGive(xGPSMutex);
-}
 #endif
 
 #ifdef ENABLE_BMP280
@@ -129,14 +183,23 @@ void acquire_mpu6050(data_t *data, mpu6050_dev_t *dev_mpu)
 #endif
 
 #ifdef ENABLE_MPU9250
-calibration_t cal = {
-    .mag_offset = {.x = 85.699219, .y = 23.537109, .z = 389.960938},
-    .mag_scale = {.x = 1.002491, .y = 0.987962, .z = 1.009796},
-    .accel_offset = {.x = 0, .y = 0, .z = 0},
-    .accel_scale_lo = {.x = 1, .y = 1, .z = 1},
-    .accel_scale_hi = {.x = -1, .y = -1, .z = -1},
+/*calibration_t cal = {
+    .mag_offset = {.x = 89.923828, .y = 25.347656, .z = 371.917969},
+    .mag_scale = {.x = 0.980390, .y = 0.972483, .z = 1.050749},
+    .accel_offset = {.x = 0.079194, .y = 0.030222, .z = -0.191995},
+    //.accel_offset = {.x = 0, .y = 0.015, .z = 0},
+    .accel_scale_lo = {.x = 1.028991, .y = 1.017323, .z = 0.925066},
+    .accel_scale_hi = {.x = -0.969137, .y = -0.981898, .z = -1.107134},
 
-    .gyro_bias_offset = {.x = -3.508518, .y = -0.067434, .z = -0.333212}};
+    .gyro_bias_offset = {.x = -3.395939, .y = -0.302809, .z = -0.823139}};*/
+calibration_t cal = {
+    .mag_offset = {.x = 25.183594, .y = 57.519531, .z = -62.648438},
+    .mag_scale = {.x = 1.513449, .y = 1.557811, .z = 1.434039},
+    .accel_offset = {.x = 0.020900, .y = 0.014688, .z = -0.002580},
+    .accel_scale_lo = {.x = -0.992052, .y = -0.990010, .z = -1.011147},
+    .accel_scale_hi = {.x = 1.013558, .y = 1.011903, .z = 1.019645},
+    .gyro_bias_offset = {.x = 0.303956, .y = -1.049768, .z = -0.403782}};
+
 vector_t va, vg, vm;
 
 static void transform_accel_gyro(vector_t *v)
@@ -160,7 +223,8 @@ static void transform_mag(vector_t *v)
     v->y = z;
     v->z = -x;
 }
-void mpu9250_task(void)
+
+void mpu9250_task(void *pvParameters)
 {
 
     xSemaphoreTake(xI2CMutex, portMAX_DELAY);
@@ -169,7 +233,6 @@ void mpu9250_task(void)
     set_full_scale_accel_range(MPU9250_ACCEL_FS_16);
     xSemaphoreGive(xI2CMutex);
 
-    uint64_t i = 0;
     while (true)
     {
         xSemaphoreTake(xI2CMutex, portMAX_DELAY);
@@ -192,7 +255,7 @@ void mpu9250_task(void)
 }
 void init_mpu9250()
 {
-    xTaskCreate(mpu9250_task, "impu9250_task", 4096, NULL, 5, NULL);
+    xTaskCreate(mpu9250_task, "impu9250_task", configMINIMAL_STACK_SIZE * 8, NULL, 5, NULL);
 }
 void acquire_mpu9250(data_t *data)
 {
@@ -219,6 +282,7 @@ void acquire_bmx280(data_t *data, bmx280_t *bmx280)
     ESP_ERROR_CHECK(bmx280_readoutFloat(bmx280, &temp, &pres, &hum));
 
     current_altitude = 44330 * (1 - powf(pres / 101325, 1 / 5.255));
+    data->bmp_altitude = current_altitude;
 
     // Update max altitude
     if (current_altitude > data->max_altitude)
@@ -336,15 +400,22 @@ void send_queues(data_t *data)
             xQueueSend(xLittleFSQueue, data, 0);
     }
 #ifdef ENABLE_LORA
-    xQueueSend(xLoraQueue, data, 0); // Send to LoRa queue
+
+    static int n = 0;
+    if (n++ % 10 == 0) //This affects the frequency of the LoRa messages
+    {
+        xQueueSend(xLoraQueue, data, 0); // Send to LoRa queue
+    }
 #endif
 
-    ESP_LOGI("Acquire", "Data sent to queues");
+    // ESP_LOGI("Acquire", "Data sent to queues");
 }
 
 void task_acquire(void *pvParameters)
 {
     xI2CMutex = xSemaphoreCreateMutex();
+
+    data_t data = {0};
 
 #ifdef ENABLE_I2CDEV
     ESP_ERROR_CHECK(i2cdev_init());
@@ -368,7 +439,7 @@ void task_acquire(void *pvParameters)
 #endif
 
 #ifdef ENABLE_BMX280
-    //vTaskDelay(pdMS_TO_TICKS(2000));
+    // vTaskDelay(pdMS_TO_TICKS(2000));
     xSemaphoreTake(xI2CMutex, portMAX_DELAY);
     bmx280_t *bmx280 = bmx280_create(I2C_NUM_0);
     init_bmx280(bmx280);
@@ -376,8 +447,7 @@ void task_acquire(void *pvParameters)
 #endif
 
 #ifdef ENABLE_GPS
-    // GPS Initialization
-    init_nmea_parser();
+    xTaskCreate(task_nmea, "nmea task", 4096 * 2, &data, 4, NULL);
 #endif
 
 #ifdef ENABLE_ADC
@@ -390,15 +460,13 @@ void task_acquire(void *pvParameters)
     vTaskDelay(pdMS_TO_TICKS(1000));
     while (1)
     {
-        data_t data;
-
         // Time and status update
         data.time = (int32_t)(esp_timer_get_time() / 1000);
         xSemaphoreTake(xStatusMutex, portMAX_DELAY);
         data.status = STATUS;
         xSemaphoreGive(xStatusMutex);
 
-#ifdef ENABLE_GPS
+#ifdef ENABLE_GPS2
         acquire_gps(&data);
 #endif
 
@@ -427,20 +495,20 @@ void task_acquire(void *pvParameters)
         status_checks(&data);
 
         // Print data
-        /*ESP_LOGI(TAG_ACQ, "\tTime: %ld, Status: %ld V: %.2f\r\n"
+        ESP_LOGI(TAG_ACQ, "\tTime: %ld, Status: %ld V: %.2f\r\n"
                           "\tBMP\t\tP: %.2f, T: %.2f, A: %.2f\r\n"
                           "\tAccel\t\tX: %.2f, Y: %.2f, Z: %.2f\r\n"
                           "\tGyro\t\tH: %.2f, P: %.2f, Y: %.2f\r\n"
-                          "\tGPS\t\tLat: %.5f, Lon: %.5f, Alt: %.2f",
+                          "\tGPS\t\tLat: %.5f, Lon: %.5f, A-GPS: %.2f",
                  data.time, data.status, data.voltage,
                  data.pressure, data.temperature, data.bmp_altitude,
                  data.accel_x, data.accel_y, data.accel_z,
                  data.rotation_x, data.rotation_y, data.rotation_z,
-                 data.latitude, data.longitude, data.gps_altitude);*/
+                 data.latitude, data.longitude, data.gps_altitude);
 
         send_queues(&data);
 
         // REDUCE AFTER OPTIMIZING CODE
-        vTaskDelay(pdMS_TO_TICKS(40));
+        vTaskDelay(pdMS_TO_TICKS(10));
     }
 }

@@ -2,7 +2,6 @@
 #include "acquire.h"
 #include "save_send.h"
 
-
 // Tags
 static const char *TAG_DEPLOY = "Deploy";
 
@@ -23,14 +22,18 @@ void task_deploy(void *pvParameters)
 
     while (1)
     {
-        /*
-        if (gpio_get_level(BUTTON_GPIO)==0)
+        /*// Manual Deploy Test
+        if (gpio_get_level(BUTTON_GPIO) == 0)
         {
             gpio_set_level(MAIN_GPIO, 1);
+            gpio_set_level(DROGUE_GPIO, 1);
         }
-        else gpio_set_level(MAIN_GPIO, 0);
-        */
-            
+        else
+        {
+            gpio_set_level(MAIN_GPIO, 0);
+            gpio_set_level(DROGUE_GPIO, 0);
+        }*/
+
         // Get current altitude
         xQueueReceive(xAltQueue, &current_altitude, portMAX_DELAY);
 
@@ -47,10 +50,9 @@ void task_deploy(void *pvParameters)
             {
                 STATUS |= DROGUE_DEPLOYED;
                 xSemaphoreGive(xStatusMutex);
-
                 gpio_set_level(DROGUE_GPIO, 1);
                 ESP_LOGW(TAG_DEPLOY, "Drogue deployed");
-                vTaskDelay(pdMS_TO_TICKS(1000));
+                vTaskDelay(pdMS_TO_TICKS(500));
                 gpio_set_level(DROGUE_GPIO, 0);
             }
             else
@@ -65,7 +67,7 @@ void task_deploy(void *pvParameters)
 
                 gpio_set_level(MAIN_GPIO, 1);
                 ESP_LOGW(TAG_DEPLOY, "Main deployed");
-                vTaskDelay(pdMS_TO_TICKS(1000));
+                vTaskDelay(pdMS_TO_TICKS(500));
                 gpio_set_level(MAIN_GPIO, 0);
 
                 // Delete task
@@ -131,6 +133,7 @@ void task_buzzer_led(void *pvParameters)
             gpio_set_level(BUZZER_GPIO, 0);
             vTaskDelay(pdMS_TO_TICKS(1000));
         }
+        vTaskDelay(pdMS_TO_TICKS(100));
     }
 }
 
@@ -143,11 +146,9 @@ void app_main(void)
     gpio_set_direction(ALED_GPIO, GPIO_MODE_OUTPUT);
 #endif
 
-    // gpio_reset_pin(RBF_GPIO);
     gpio_set_direction(RBF_GPIO, GPIO_MODE_INPUT);
     gpio_set_pull_mode(RBF_GPIO, GPIO_PULLUP_ONLY);
 
-    // gpio_reset_pin(BUTTON_GPIO);
     gpio_set_direction(BUTTON_GPIO, GPIO_MODE_INPUT);
     gpio_set_pull_mode(BUTTON_GPIO, GPIO_PULLUP_ONLY);
 
@@ -173,10 +174,10 @@ void app_main(void)
     xStatusMutex = xSemaphoreCreateMutex();
 
     // Create Queues
-    xAltQueue = xQueueCreate(10, sizeof(float));
-    xLittleFSQueue = xQueueCreate(10, sizeof(data_t));
-    xSDQueue = xQueueCreate(10, sizeof(data_t));
-    xLoraQueue = xQueueCreate(10, sizeof(data_t));
+    xAltQueue = xQueueCreate(2, sizeof(float));
+    xLittleFSQueue = xQueueCreate(2, sizeof(data_t));
+    xSDQueue = xQueueCreate(2, sizeof(data_t));
+    xLoraQueue = xQueueCreate(2, sizeof(data_t));
 
     // Initialize NVS to store file counters
     esp_err_t err = nvs_flash_init();
@@ -246,12 +247,12 @@ void app_main(void)
 
     // Start tasks
     xTaskCreate(task_acquire, "Acquire", configMINIMAL_STACK_SIZE * 4, NULL, 4, NULL);
-    xTaskCreate(task_sd, "SD", configMINIMAL_STACK_SIZE * 4, &counter_sd, 4, NULL);
-    xTaskCreate(task_littlefs, "LittleFS", configMINIMAL_STACK_SIZE * 4, &counter_lfs, 4, NULL);
+    xTaskCreate(task_sd, "SD", configMINIMAL_STACK_SIZE * 4, &counter_sd, 5, NULL);
+    xTaskCreate(task_littlefs, "LittleFS", configMINIMAL_STACK_SIZE * 4, &counter_lfs, 5, NULL);
 #ifdef ENABLE_LORA
-    xTaskCreate(task_lora, "Lora", configMINIMAL_STACK_SIZE * 4, NULL, 5, NULL);
+    xTaskCreate(task_lora, "Lora", configMINIMAL_STACK_SIZE * 4, NULL, 6, &xTaskLora);
 #endif
-    xTaskCreate(task_buzzer_led, "Buzzer LED", configMINIMAL_STACK_SIZE * 2, NULL, 1, NULL);
+    xTaskCreate(task_buzzer_led, "Buzzer LED", configMINIMAL_STACK_SIZE * 2, NULL, 3, NULL);
 
     while (1)
     {

@@ -23,14 +23,15 @@
 #include "common9250.h"
 #endif
 #ifdef ENABLE_GPS
-#include "nmea_parser.h"
-gps_t gps;
+#include "driver/uart.h"
+#include "nmea.h"
+#include "gpgga.h"
 #endif
 
 #define G 9.80665
 
-#define FLYING_THRESHOLD 2 * G // Acceleration threshold to consider rocket flying
-#define CUTOFF_THRESHOLD 2 * G // Acceleration threshold to consider motor cutoff
+#define FLYING_THRESHOLD 10 * G // Acceleration threshold to consider rocket flying
+#define CUTOFF_THRESHOLD 3 * G // Acceleration threshold to consider motor cutoff
 #define LANDED_THRESHOLD 2     // Altitude threshold to consider rocket landed
 
 // MPU6050

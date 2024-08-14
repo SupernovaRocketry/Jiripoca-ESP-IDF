@@ -111,9 +111,6 @@ void task_sd(void *pvParameters)
             if (STATUS & LANDED)
             {
                 xSemaphoreGive(xStatusMutex);
-#ifdef ENABLE_GPS
-                write_gps_time(log_name);
-#endif
                 ESP_LOGW(TAG_SD, "Landed, unmounting SD card");
                 esp_vfs_fat_sdcard_unmount(mount_point, card);
                 ESP_LOGI(TAG_SD, "Card unmounted");
@@ -127,7 +124,6 @@ void task_sd(void *pvParameters)
         }
 
         // Write buffer to file
-        uint64_t time = esp_timer_get_time();
         f = fopen(log_name, "a");
         if (f == NULL)
         {
@@ -135,7 +131,7 @@ void task_sd(void *pvParameters)
         }
         fwrite(buffer, sizeof(data_t), CONFIG_SD_BUFFER_SIZE / sizeof(data_t), f);
         fclose(f);
-        ESP_LOGI(TAG_SD, "Data written to SD card. Time: %lld", esp_timer_get_time() - time);
+        ESP_LOGI(TAG_SD, "Data written to SD card");
     }
 }
 
@@ -222,9 +218,6 @@ void task_littlefs(void *pvParameters)
             if (STATUS & LANDED)
             {
                 xSemaphoreGive(xStatusMutex);
-#ifdef ENABLE_GPS
-                write_gps_time(log_name);
-#endif
                 ESP_LOGW(TAG_LITTLEFS, "Landed, unmounting LittleFS");
                 esp_vfs_littlefs_unregister(conf.partition_label);
                 ESP_LOGI(TAG_LITTLEFS, "LittleFS unmounted");
@@ -257,9 +250,6 @@ void task_littlefs(void *pvParameters)
 
             if (oldest_file_num == counter.file_num) // If oldest file is current file
             {
-#ifdef ENABLE_GPS
-                write_gps_time(log_name);
-#endif
                 ESP_LOGE(TAG_LITTLEFS, "No more disk space, unmounting LittleFS");
 
                 esp_vfs_littlefs_unregister(conf.partition_label);
@@ -433,41 +423,17 @@ void task_lora(void *pvParameters)
 #endif
 
 #ifdef ENABLE_E220
-TaskHandle_t handle_interrupt;
-int32_t tx_ready = pdFALSE;
-SemaphoreHandle_t xTXMutex;
+int32_t tx_ready = pdTRUE;
 
 // handle_interrupt_fromisr resumes handle_interrupt_task
 void IRAM_ATTR handle_interrupt_fromisr(void *arg)
 {
-    xTaskResumeFromISR(handle_interrupt);
-}
-
-// handle_interrupt_task handles interrupts from E220
-void handle_interrupt_task(void *arg)
-{
-    while (1)
-    {
-        vTaskSuspend(NULL);
-        xSemaphoreTake(xTXMutex, portMAX_DELAY);
-        tx_ready = pdTRUE;
-        xSemaphoreGive(xTXMutex);
-        ESP_LOGI(TAG_LORA, "tx ready");
-    }
+    xTaskResumeFromISR(xTaskLora);
 }
 
 // task_lora reads data from queue and sends it to Lora module
 void task_lora(void *pvParameters)
 {
-    xTXMutex = xSemaphoreCreateMutex();
-    
-    // Create interrupt handling task and interrupt
-    BaseType_t task_code = xTaskCreatePinnedToCore(handle_interrupt_task, "handle interrupt", 8196, NULL, 2, &handle_interrupt, xPortGetCoreID());
-    if (task_code != pdPASS)
-    {
-        ESP_LOGE(TAG_LORA, "can't create task %d", task_code);
-        return;
-    }
     gpio_set_direction((gpio_num_t)E220_AUX, GPIO_MODE_INPUT);
     gpio_pullup_dis((gpio_num_t)E220_AUX);
     gpio_set_intr_type((gpio_num_t)E220_AUX, GPIO_INTR_POSEDGE);
@@ -477,7 +443,7 @@ void task_lora(void *pvParameters)
     uart_config_t uart_config = {
         .baud_rate = CONFIG_E220_BAUD,
         .data_bits = UART_DATA_8_BITS,
-        .parity    = UART_PARITY_DISABLE,
+        .parity = UART_PARITY_DISABLE,
         .stop_bits = UART_STOP_BITS_1,
         .flow_ctrl = UART_HW_FLOWCTRL_DISABLE,
         .source_clk = UART_SCLK_DEFAULT,
@@ -488,9 +454,10 @@ void task_lora(void *pvParameters)
     ESP_ERROR_CHECK(uart_param_config(UART_NUM_2, &uart_config));
     ESP_ERROR_CHECK(uart_set_pin(UART_NUM_2, E220_TX, E220_RX, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE));
 
+    data_t data;
+
     while (1)
     {
-        data_t data;
 #ifdef CONFIG_E220_MODE_BUFFER
         data_t buffer[CONFIG_E220_BUFFER_SIZE / sizeof(data_t)];
         // Read data from queue and put it in fifo
@@ -499,25 +466,14 @@ void task_lora(void *pvParameters)
             xQueueReceive(xLoraQueue, &data, portMAX_DELAY);
             buffer[i] = data;
         }
-        xSemaphoreTake(xTXMutex, portMAX_DELAY);
-        if (tx_ready == pdTRUE)
-        {
-            ESP_LOGI(TAG_LORA, "sending %d byte packet", CONFIG_E220_BUFFER_SIZE);
-            uart_write_bytes(UART_NUM_1, (const char *)buffer, CONFIG_E220_BUFFER_SIZE);
-            tx_ready = pdFALSE;
-        }
-        xSemaphoreGive(xTXMutex);
+        ESP_LOGI(TAG_LORA, "sending %d byte packet", CONFIG_E220_BUFFER_SIZE);
+        uart_write_bytes(UART_NUM_2, (const void *)buffer, CONFIG_E220_BUFFER_SIZE);
 #else
         xQueueReceive(xLoraQueue, &data, portMAX_DELAY);
-        xSemaphoreTake(xTXMutex, portMAX_DELAY);
-        if (tx_ready == pdTRUE)
-        {
-            ESP_LOGI(TAG_LORA, "sending %d byte packet", sizeof(data_t));
-            uart_write_bytes(UART_NUM_1, (const char *)&data, sizeof(data_t));
-            tx_ready = pdFALSE;
-        }
-        xSemaphoreGive(xTXMutex);
+        ESP_LOGI(TAG_LORA, "sending %d byte packet", sizeof(data_t));
+        uart_write_bytes(UART_NUM_2, (const void *)&data, sizeof(data_t));
 #endif
+        vTaskSuspend(NULL);
     }
 }
 #endif

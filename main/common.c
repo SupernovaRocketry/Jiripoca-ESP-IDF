@@ -1,6 +1,8 @@
 #include "common.h"
 
 // Global vars
+TaskHandle_t xTaskLora = NULL;
+
 // Queues
 QueueHandle_t xAltQueue = NULL;
 QueueHandle_t xLittleFSQueue = NULL;
