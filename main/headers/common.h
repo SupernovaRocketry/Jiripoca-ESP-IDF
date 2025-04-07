@@ -19,13 +19,6 @@
 #include "freertos/queue.h"
 #include "freertos/semphr.h"
 
-// ALTIMETER BOARD
-#ifdef CONFIG_ALTIMETER_VERSION_ASR3000_V3
-#include "asr3000_v3.h"
-
-#elif CONFIG_ALTIMETER_VERSION_ASR3000_V2
-#include "asr3000_v2.h"
-#endif
 
 // Status flags
 #define ARMED (1 << 0)
