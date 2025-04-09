@@ -4,3 +4,7 @@ managed_components/
 
 *.DS_Store
 */.cache
+
+.vscode/*
+!.vscode/tasks.json
+!.vscode/extensions.json
