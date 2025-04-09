@@ -1,10 +1,29 @@
 {
   "C_Cpp.intelliSenseEngine": "default",
-  "idf.adapterTargetName": "esp32",
+  "idf.adapterTargetName": "esp32s3",
   "cmake.configureOnOpen": false,
-  "idf.portWin": "COM9",
+  "idf.portWin": "COM10",
   "idf.flashType": "UART",
   "files.associations": {
-    "spi_common.h": "c"
-  }
+    "spi_common.h": "c",
+    "stdlib.h": "c",
+    "sx127x.h": "c",
+    "esp_err.h": "c",
+    "nmea_parser.h": "c",
+    "common.h": "c",
+    "queue.h": "c",
+    "semphr.h": "c",
+    "stdio.h": "c",
+    "mpu6050.h": "c",
+    "array": "c",
+    "string": "c",
+    "string_view": "c",
+    "span": "c",
+    "acquire.h": "c",
+    "nmea.h": "c"
+  },
+  "idf.openOcdConfigs": [
+    "interface/esp_usb_jtag.cfg",
+    "board/esp32s3-builtin.cfg"
+  ]
 }

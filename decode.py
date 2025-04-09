@@ -19,7 +19,7 @@ def decode_and_write_to_csv(file_path, output_csv_path):
         header = [
             'Time', 'Status', 'Pressure', 'Temperature', 'BMP Altitude', 'Max Altitude',
             'Accel_X', 'Accel_Y', 'Accel_Z', 'Rotation_X', 'Rotation_Y', 'Rotation_Z',
-            'Latitude', 'Longitude', 'GPS Altitude', 'Horizontal Speed'
+            'Latitude', 'Longitude', 'GPS Altitude', 'Voltage'
         ]
         csv_writer.writerow(header)
 
@@ -48,6 +48,6 @@ def decode_and_write_to_csv(file_path, output_csv_path):
                 print("Incomplete data found. Skipping the last incomplete entry.")
 
 # Example usage
-input_file_path = 'log6.bin'                # Replace with the actual file path
-output_csv_path = 'output_data.csv'         # Replace with the desired output CSV file path
+input_file_path = 'FLIGHT1.BIN'                # Replace with the actual file path
+output_csv_path = 'FLIGHT1.csv'         # Replace with the desired output CSV file path
 decode_and_write_to_csv(input_file_path, output_csv_path)

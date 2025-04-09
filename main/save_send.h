@@ -1,9 +1,25 @@
 #ifndef SAVE_SEND_H
 #define SAVE_SEND_H
 
+#include "common.h"
+
+#include "sys/stat.h"
+#include "nvs_flash.h"
+#include "nvs.h"
+#include "unistd.h"
+#include "sdmmc_cmd.h"
+#include "esp_err.h"
+#include "esp_vfs_fat.h"
+#include "esp_littlefs.h"
+#include "driver/uart.h"
+
 #define MAX_USED 0.8 // Maximum percentage of flash to be used by littlefs
 
-#endif
+#ifdef ENABLE_SX1276
+#include "driver/spi_common.h"
+#include "driver/spi_master.h"
+#include "esp_intr_alloc.h"
+#include "sx127x.h"
 
 #ifdef CONFIG_SX127X_BW_7800
 #define SX127X_BW 0b00000000
@@ -46,9 +62,17 @@
 #else
 #define SX127X_SF 0b10010000
 #endif
+#endif
 
+#ifdef ENABLE_E220
+#include "driver/uart.h"
+#define E220_BAUD_RATE 115200
+#endif
 
+#endif
 
 void task_sd(void *pvParameters);
 void task_littlefs(void *pvParameters);
+#ifdef ENABLE_LORA
 void task_lora(void *pvParameters);
+#endif

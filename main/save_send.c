@@ -1,57 +1,9 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include "sys/stat.h"
-#include "freertos/FreeRTOS.h"
-#include "freertos/task.h"
-#include "freertos/semphr.h"
-#include "freertos/queue.h"
-#include "sdkconfig.h"
-#include "nvs_flash.h"
-#include "nvs.h"
-#include "unistd.h"
-#include "sdmmc_cmd.h"
-#include "esp_err.h"
-#include "esp_log.h"
-#include "esp_timer.h"
-#include "esp_vfs_fat.h"
-#include "esp_littlefs.h"
-#include "nmea_parser.h"
-#include "driver/spi_common.h"
-#include "driver/spi_master.h"
-#include "esp_intr_alloc.h"
-#include "sx127x.h"
-
 #include "save_send.h"
-#include "common.h"
 
 // TAGS
 static const char *TAG_LITTLEFS = "LittleFS";
 static const char *TAG_SD = "SD Card";
-static const char *TAG_SX127X = "sx127x";
-
-// sx127x
-sx127x *device = NULL;
-TaskHandle_t handle_interrupt;
-int32_t tx_ready = pdFALSE;
-SemaphoreHandle_t xTXMutex;
-
-// write_gps_time writes GPS time to file
-void write_gps_time(char log_name[32])
-{
-    xSemaphoreGive(xStatusMutex);
-    FILE *f = fopen(log_name, "a"); // append to file
-    if (f == NULL)
-    {
-        ESP_LOGE(TAG_SD, "Failed to open file for writing");
-    }
-    xSemaphoreTake(xGPSMutex, portMAX_DELAY);
-    fwrite(&gps.date, sizeof(gps.date), 1, f); // write date
-    fwrite(&gps.tim, sizeof(gps.tim), 1, f);   // write time
-    xSemaphoreGive(xGPSMutex);
-    ESP_LOGI(TAG_SD, "GPS time written to SD card");
-    fclose(f);
-}
+static const char *TAG_LORA = "LoRa";
 
 // task_sd reads data from queue and writes it to SD card
 void task_sd(void *pvParameters)
@@ -80,9 +32,9 @@ void task_sd(void *pvParameters)
     sdmmc_host_t host = SDSPI_HOST_DEFAULT();
 
     spi_bus_config_t bus_cfg = {
-        .mosi_io_num = CONFIG_SD_PIN_MOSI,
-        .miso_io_num = CONFIG_SD_PIN_MISO,
-        .sclk_io_num = CONFIG_SD_PIN_CLK,
+        .mosi_io_num = SD_MOSI,
+        .miso_io_num = SD_MISO,
+        .sclk_io_num = SD_SCK,
         .quadwp_io_num = -1,
         .quadhd_io_num = -1,
         .max_transfer_sz = 4000,
@@ -95,7 +47,7 @@ void task_sd(void *pvParameters)
     }
 
     sdspi_device_config_t slot_config = SDSPI_DEVICE_CONFIG_DEFAULT();
-    slot_config.gpio_cs = CONFIG_SD_PIN_CS;
+    slot_config.gpio_cs = SD_CS;
     slot_config.host_id = host.slot;
 
     ESP_LOGI(TAG_SD, "Mounting filesystem");
@@ -159,9 +111,6 @@ void task_sd(void *pvParameters)
             if (STATUS & LANDED)
             {
                 xSemaphoreGive(xStatusMutex);
-
-                write_gps_time(log_name);
-
                 ESP_LOGW(TAG_SD, "Landed, unmounting SD card");
                 esp_vfs_fat_sdcard_unmount(mount_point, card);
                 ESP_LOGI(TAG_SD, "Card unmounted");
@@ -175,7 +124,6 @@ void task_sd(void *pvParameters)
         }
 
         // Write buffer to file
-        uint64_t time = esp_timer_get_time();
         f = fopen(log_name, "a");
         if (f == NULL)
         {
@@ -183,7 +131,7 @@ void task_sd(void *pvParameters)
         }
         fwrite(buffer, sizeof(data_t), CONFIG_SD_BUFFER_SIZE / sizeof(data_t), f);
         fclose(f);
-        ESP_LOGI(TAG_SD, "Data written to SD card. Time: %lld", esp_timer_get_time() - time);
+        ESP_LOGI(TAG_SD, "Data written to SD card");
     }
 }
 
@@ -270,9 +218,6 @@ void task_littlefs(void *pvParameters)
             if (STATUS & LANDED)
             {
                 xSemaphoreGive(xStatusMutex);
-
-                write_gps_time(log_name);
-
                 ESP_LOGW(TAG_LITTLEFS, "Landed, unmounting LittleFS");
                 esp_vfs_littlefs_unregister(conf.partition_label);
                 ESP_LOGI(TAG_LITTLEFS, "LittleFS unmounted");
@@ -305,8 +250,6 @@ void task_littlefs(void *pvParameters)
 
             if (oldest_file_num == counter.file_num) // If oldest file is current file
             {
-                write_gps_time(log_name);
-
                 ESP_LOGE(TAG_LITTLEFS, "No more disk space, unmounting LittleFS");
 
                 esp_vfs_littlefs_unregister(conf.partition_label);
@@ -333,6 +276,12 @@ void task_littlefs(void *pvParameters)
     }
 }
 
+#ifdef ENABLE_SX1276
+sx127x *device = NULL;
+TaskHandle_t handle_interrupt;
+int32_t tx_ready = pdFALSE;
+SemaphoreHandle_t xTXMutex;
+
 // handle_interrupt_fromisr resumes handle_interrupt_task
 void IRAM_ATTR handle_interrupt_fromisr(void *arg)
 {
@@ -355,7 +304,7 @@ void tx_callback(sx127x *device)
     xSemaphoreTake(xTXMutex, portMAX_DELAY);
     tx_ready = pdTRUE;
     xSemaphoreGive(xTXMutex);
-    ESP_LOGI(TAG_SX127X, "tx ready");
+    ESP_LOGI(TAG_LORA, "tx ready");
 }
 
 // task_lora reads data from queue and sends it to Lora module
@@ -369,7 +318,7 @@ void task_lora(void *pvParameters)
     // Mutex for tx_ready
     xTXMutex = xSemaphoreCreateMutex();
 
-    ESP_LOGI(TAG_SX127X, "starting up");
+    ESP_LOGI(TAG_LORA, "starting up");
 
     // SPI init
     spi_bus_config_t config = {
@@ -416,7 +365,7 @@ void task_lora(void *pvParameters)
     BaseType_t task_code = xTaskCreatePinnedToCore(handle_interrupt_task, "handle interrupt", 8196, device, 2, &handle_interrupt, xPortGetCoreID());
     if (task_code != pdPASS)
     {
-        ESP_LOGE(TAG_SX127X, "can't create task %d", task_code);
+        ESP_LOGE(TAG_LORA, "can't create task %d", task_code);
         sx127x_destroy(device);
         return;
     }
@@ -452,7 +401,7 @@ void task_lora(void *pvParameters)
         if (tx_ready == pdTRUE)
         {
             ESP_ERROR_CHECK(sx127x_lora_tx_set_for_transmission(buffer, sizeof(buffer), device));
-            ESP_LOGI(TAG_SX127X, "sending %d byte packet", CONFIG_SX127X_BUFFER_SIZE);
+            ESP_LOGI(TAG_LORA, "sending %d byte packet", CONFIG_SX127X_BUFFER_SIZE);
             ESP_ERROR_CHECK(sx127x_set_opmod(SX127x_MODE_TX, SX127x_MODULATION_LORA, device)); // Set sx127x to transmit mode
             tx_ready = pdFALSE;
         }
@@ -463,7 +412,7 @@ void task_lora(void *pvParameters)
         if (tx_ready == pdTRUE)
         {
             ESP_ERROR_CHECK(sx127x_lora_tx_set_for_transmission(&data, sizeof(data_t), device));
-            ESP_LOGI(TAG_SX127X, "sending %d byte packet", sizeof(data_t));
+            ESP_LOGI(TAG_LORA, "sending %d byte packet", sizeof(data_t));
             ESP_ERROR_CHECK(sx127x_set_opmod(SX127x_MODE_TX, SX127x_MODULATION_LORA, device)); // Set sx127x to transmit mode
             tx_ready = pdFALSE;
         }
@@ -471,3 +420,60 @@ void task_lora(void *pvParameters)
 #endif
     }
 }
+#endif
+
+#ifdef ENABLE_E220
+int32_t tx_ready = pdTRUE;
+
+// handle_interrupt_fromisr resumes handle_interrupt_task
+void IRAM_ATTR handle_interrupt_fromisr(void *arg)
+{
+    xTaskResumeFromISR(xTaskLora);
+}
+
+// task_lora reads data from queue and sends it to Lora module
+void task_lora(void *pvParameters)
+{
+    gpio_set_direction((gpio_num_t)E220_AUX, GPIO_MODE_INPUT);
+    gpio_pullup_dis((gpio_num_t)E220_AUX);
+    gpio_set_intr_type((gpio_num_t)E220_AUX, GPIO_INTR_POSEDGE);
+    gpio_install_isr_service(0);
+    gpio_isr_handler_add((gpio_num_t)E220_AUX, handle_interrupt_fromisr, NULL);
+
+    uart_config_t uart_config = {
+        .baud_rate = CONFIG_E220_BAUD,
+        .data_bits = UART_DATA_8_BITS,
+        .parity = UART_PARITY_DISABLE,
+        .stop_bits = UART_STOP_BITS_1,
+        .flow_ctrl = UART_HW_FLOWCTRL_DISABLE,
+        .source_clk = UART_SCLK_DEFAULT,
+    };
+    int intr_alloc_flags = 0;
+
+    ESP_ERROR_CHECK(uart_driver_install(UART_NUM_2, 1024 * 2, 0, 0, NULL, intr_alloc_flags));
+    ESP_ERROR_CHECK(uart_param_config(UART_NUM_2, &uart_config));
+    ESP_ERROR_CHECK(uart_set_pin(UART_NUM_2, E220_TX, E220_RX, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE));
+
+    data_t data;
+
+    while (1)
+    {
+#ifdef CONFIG_E220_MODE_BUFFER
+        data_t buffer[CONFIG_E220_BUFFER_SIZE / sizeof(data_t)];
+        // Read data from queue and put it in fifo
+        for (int i = 0; i < CONFIG_E220_BUFFER_SIZE / sizeof(data_t); i++)
+        {
+            xQueueReceive(xLoraQueue, &data, portMAX_DELAY);
+            buffer[i] = data;
+        }
+        ESP_LOGI(TAG_LORA, "sending %d byte packet", CONFIG_E220_BUFFER_SIZE);
+        uart_write_bytes(UART_NUM_2, (const void *)buffer, CONFIG_E220_BUFFER_SIZE);
+#else
+        xQueueReceive(xLoraQueue, &data, portMAX_DELAY);
+        ESP_LOGI(TAG_LORA, "sending %d byte packet", sizeof(data_t));
+        uart_write_bytes(UART_NUM_2, (const void *)&data, sizeof(data_t));
+#endif
+        vTaskSuspend(NULL);
+    }
+}
+#endif
