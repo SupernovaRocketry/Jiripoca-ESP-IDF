@@ -4,3 +4,5 @@ managed_components/
 
 *.DS_Store
 */.cache
+.vscode/
+debug.log
