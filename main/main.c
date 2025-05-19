@@ -2,6 +2,9 @@
 #include "acquire.h"
 #include "save_send.h"
 
+#define HIGH 1
+#define LOW 0
+
 // Tags
 static const char *TAG_DEPLOY = "Deploy";
 
@@ -20,18 +23,18 @@ void task_deploy(void *pvParameters)
     xQueueReceive(xAltQueue, &current_altitude, portMAX_DELAY);
     start_altitude = current_altitude;
 
-    while (1)
+    while (true)
     {
         /*// Manual Deploy Test
-        if (gpio_get_level(BUTTON_GPIO) == 0)
+        if (gpio_get_level(BUTTON_GPIO) == LOW)
         {
-            gpio_set_level(MAIN_GPIO, 1);
-            gpio_set_level(DROGUE_GPIO, 1);
+            gpio_set_level(MAIN_GPIO, HIGH);
+            gpio_set_level(DROGUE_GPIO, HIGH);
         }
         else
         {
-            gpio_set_level(MAIN_GPIO, 0);
-            gpio_set_level(DROGUE_GPIO, 0);
+            gpio_set_level(MAIN_GPIO, LOW);
+            gpio_set_level(DROGUE_GPIO, LOW);
         }*/
 
         // Get current altitude
@@ -50,10 +53,10 @@ void task_deploy(void *pvParameters)
             {
                 STATUS |= DROGUE_DEPLOYED;
                 xSemaphoreGive(xStatusMutex);
-                gpio_set_level(DROGUE_GPIO, 1);
+                gpio_set_level(DROGUE_GPIO, HIGH);
                 ESP_LOGW(TAG_DEPLOY, "Drogue deployed");
                 vTaskDelay(pdMS_TO_TICKS(500));
-                gpio_set_level(DROGUE_GPIO, 0);
+                gpio_set_level(DROGUE_GPIO, LOW);
             }
             else
                 xSemaphoreGive(xStatusMutex);
@@ -65,10 +68,10 @@ void task_deploy(void *pvParameters)
                 STATUS |= MAIN_DEPLOYED;
                 xSemaphoreGive(xStatusMutex);
 
-                gpio_set_level(MAIN_GPIO, 1);
+                gpio_set_level(MAIN_GPIO, HIGH);
                 ESP_LOGW(TAG_DEPLOY, "Main deployed");
                 vTaskDelay(pdMS_TO_TICKS(500));
-                gpio_set_level(MAIN_GPIO, 0);
+                gpio_set_level(MAIN_GPIO, LOW);
 
                 // Delete task
                 vTaskDelete(NULL);
@@ -93,16 +96,16 @@ void task_buzzer_led(void *pvParameters)
     // When initializing, blink LED and beep buzzer 10 times
     for (uint32_t i = 0; i < 10; i++)
     {
-        gpio_set_level(LED_GPIO, 1);
-        gpio_set_level(BUZZER_GPIO, 1);
+        gpio_set_level(LED_GPIO, HIGH);
+        gpio_set_level(BUZZER_GPIO, HIGH);
         vTaskDelay(pdMS_TO_TICKS(50));
-        gpio_set_level(LED_GPIO, 0);
-        gpio_set_level(BUZZER_GPIO, 0);
+        gpio_set_level(LED_GPIO, LOW);
+        gpio_set_level(BUZZER_GPIO, LOW);
         vTaskDelay(pdMS_TO_TICKS(50));
     }
     ESP_LOGI("Buzzer LED", "Initialized");
 
-    while (1)
+    while (true)
     {
         // Use local copy of STATUS because of delays
         xSemaphoreTake(xStatusMutex, portMAX_DELAY);
@@ -115,22 +118,22 @@ void task_buzzer_led(void *pvParameters)
             static uint32_t i = 0;
             while (i++ < 3)
             {
-                gpio_set_level(LED_GPIO, 1);
-                gpio_set_level(BUZZER_GPIO, 1);
+                gpio_set_level(LED_GPIO, HIGH);
+                gpio_set_level(BUZZER_GPIO, HIGH);
                 vTaskDelay(pdMS_TO_TICKS(1000));
-                gpio_set_level(LED_GPIO, 0);
-                gpio_set_level(BUZZER_GPIO, 0);
+                gpio_set_level(LED_GPIO, LOW);
+                gpio_set_level(BUZZER_GPIO, LOW);
                 vTaskDelay(pdMS_TO_TICKS(100));
             }
         }
         // If LANDED, blink LED every second
         if (status_local & LANDED)
         {
-            gpio_set_level(LED_GPIO, 1);
-            gpio_set_level(BUZZER_GPIO, 1);
+            gpio_set_level(LED_GPIO, HIGH);
+            gpio_set_level(BUZZER_GPIO, HIGH);
             vTaskDelay(pdMS_TO_TICKS(1000));
-            gpio_set_level(LED_GPIO, 0);
-            gpio_set_level(BUZZER_GPIO, 0);
+            gpio_set_level(LED_GPIO, LOW);
+            gpio_set_level(BUZZER_GPIO, LOW);
             vTaskDelay(pdMS_TO_TICKS(1000));
         }
         vTaskDelay(pdMS_TO_TICKS(100));
@@ -141,10 +144,9 @@ void app_main(void)
 {
     // GPIO Initialization
 
-#ifdef ENABLE_ALED
-    gpio_reset_pin(ALED_GPIO);
-    gpio_set_direction(ALED_GPIO, GPIO_MODE_OUTPUT);
-#endif
+    // test with ALED
+    // gpio_reset_pin(ALED_GPIO);
+    // gpio_set_direction(ALED_GPIO, GPIO_MODE_OUTPUT);
 
     gpio_set_direction(RBF_GPIO, GPIO_MODE_INPUT);
     gpio_set_pull_mode(RBF_GPIO, GPIO_PULLUP_ONLY);
@@ -154,10 +156,10 @@ void app_main(void)
 
     // Enter format mode if button is pressed for 5 seconds
     uint32_t format = pdFALSE;
-    if (gpio_get_level(BUTTON_GPIO) == 0)
+    if (gpio_get_level(BUTTON_GPIO) == LOW)
     {
         uint64_t time = esp_timer_get_time();
-        while (gpio_get_level(BUTTON_GPIO) == 0)
+        while (gpio_get_level(BUTTON_GPIO) == LOW)
         {
             if (esp_timer_get_time() - time > 5000000)
             {
@@ -224,8 +226,14 @@ void app_main(void)
     nvs_close(nvs_handle);
 
     // Create file counter structs for tasks
-    file_counter_t counter_sd = {.file_num = sd_num, .format = format};
-    file_counter_t counter_lfs = {.file_num = lfs_num, .format = format};
+    file_counter_t counter_sd = {
+        .file_num = sd_num,
+        .format = format
+    };
+    file_counter_t counter_lfs = {
+        .file_num = lfs_num,
+        .format = format
+    };
 
     // If format is true, format SD and LittleFS, then restart
     if (format == pdTRUE)
@@ -238,7 +246,7 @@ void app_main(void)
     }
 
     // If RBF is off at startup, set SAFE_MODE
-    if (gpio_get_level(RBF_GPIO) == 0)
+    if (gpio_get_level(RBF_GPIO) == LOW)
     {
         xSemaphoreTake(xStatusMutex, portMAX_DELAY);
         STATUS |= SAFE_MODE;
@@ -249,24 +257,21 @@ void app_main(void)
     xTaskCreate(task_acquire, "Acquire", configMINIMAL_STACK_SIZE * 4, NULL, 4, NULL);
     xTaskCreate(task_sd, "SD", configMINIMAL_STACK_SIZE * 4, &counter_sd, 5, NULL);
     xTaskCreate(task_littlefs, "LittleFS", configMINIMAL_STACK_SIZE * 4, &counter_lfs, 5, NULL);
-#ifdef ENABLE_LORA
     xTaskCreate(task_lora, "Lora", configMINIMAL_STACK_SIZE * 4, NULL, 6, &xTaskLora);
-#endif
     xTaskCreate(task_buzzer_led, "Buzzer LED", configMINIMAL_STACK_SIZE * 2, NULL, 3, NULL);
 
-    while (1)
+    while (true)
     {
         // Logic for arming parachute deployment
         xSemaphoreTake(xStatusMutex, portMAX_DELAY);
         if (!(STATUS & ARMED)) // If not armed
         {
-            if (!(STATUS & SAFE_MODE) && gpio_get_level(RBF_GPIO) == 0) // If not in safe mode and RBF is off
+            if (!(STATUS & SAFE_MODE) && gpio_get_level(RBF_GPIO) == LOW) // If not in safe mode and RBF is off
             {
                 xTaskCreate(task_deploy, "Deploy", configMINIMAL_STACK_SIZE * 2, NULL, 5, NULL); // Start deploy task
                 STATUS |= ARMED;                                                                 // Set ARMED
-#ifdef ENABLE_ALED
-                gpio_set_level(ALED_GPIO, 1);
-#endif
+                // test with ALED
+                // gpio_set_level(ALED_GPIO, HIGH);
             }
         }
         xSemaphoreGive(xStatusMutex);
