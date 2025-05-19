@@ -120,8 +120,6 @@ void init_bmp280(bmp280_t *dev_bmp)
     // BMP280 Initialization
     ESP_ERROR_CHECK(bmp280_init_desc(dev_bmp, BMP280_I2C_ADDRESS_0, 0, I2C_SDA, I2C_SCL));
     ESP_ERROR_CHECK(bmp280_init(dev_bmp, &params));
-
-    ESP_ERROR_CHECK(bmp280_set_mode(dev_bmp, BMP280_MODE_NORMAL)); // Normal mode
 }
 
 void acquire_bmp280(data_t *data, bmp280_t *dev_bmp)
@@ -281,10 +279,13 @@ void task_acquire(void *pvParameters)
         xSemaphoreTake(xStatusMutex, portMAX_DELAY);
         data.status = STATUS;
         xSemaphoreGive(xStatusMutex);
-
+#ifdef ENABLE_GPS2
         acquire_gps(&data);
+#endif
         acquire_bmp280(&data, &dev_bmp);
+#ifdef ENABLE_MPU9250
         acquire_mpu9250(&data);
+#endif
         acquire_voltage(&data, &adc_handle, &cali_handle);
 
         status_checks(&data);
