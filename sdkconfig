@@ -574,12 +574,6 @@ CONFIG_I2CDEV_TIMEOUT=1000
 # end of I2C
 
 #
-# mpu6050 address
-#
-# CONFIG_AUTO_CONFIG_ADDR is not set
-# end of mpu6050 address
-
-#
 # Compiler options
 #
 CONFIG_COMPILER_OPTIMIZATION_DEBUG=y
