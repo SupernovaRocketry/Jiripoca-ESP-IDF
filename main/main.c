@@ -42,9 +42,7 @@ void task_deploy(void *pvParameters)
 
         // Update max altitude
         if (current_altitude > max_altitude)
-        {
             max_altitude = current_altitude;
-        }
 
         xSemaphoreTake(xStatusMutex, portMAX_DELAY);
         if (!(STATUS & DROGUE_DEPLOYED)) // If drogue not deployed
