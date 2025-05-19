@@ -1,27 +1,42 @@
 dependencies:
   dernasherbrezon/sx127x:
     component_hash: 98fa3fd80e015566ff47ecb4bf5d0d096fb25958f2345e1d440adb1ce8351349
+    dependencies: []
     source:
-      service_url: https://api.components.espressif.com/
+      registry_url: https://components.espressif.com/
       type: service
     version: 3.1.2
   idf:
-    component_hash: null
     source:
       type: idf
-    version: 5.2.1
+    version: 5.3.1
   igrr/libnmea:
     component_hash: 25ea527f892761c4311831ecadfa0cb1a3a323501c43b4a8263639beec01ae57
+    dependencies:
+    - name: idf
+      registry_url: https://components.espressif.com
+      require: private
+      version: '>=4.0'
     source:
-      service_url: https://api.components.espressif.com/
+      registry_url: https://components.espressif.com/
       type: service
     version: 0.1.1
   joltwallet/littlefs:
     component_hash: 1d8f346fe94debb00483f76d04b6648083f2d3505da811beccdbd0bd1f6c24cd
+    dependencies:
+    - name: idf
+      registry_url: https://components.espressif.com
+      require: private
+      version: '>=4.3'
     source:
-      service_url: https://api.components.espressif.com/
+      registry_url: https://components.espressif.com/
       type: service
     version: 1.11.0
-manifest_hash: acae028174e96da15e646169c91ab0cde93375caf54672a355133fa8e2d6aab5
+direct_dependencies:
+- dernasherbrezon/sx127x
+- idf
+- igrr/libnmea
+- joltwallet/littlefs
+manifest_hash: f6bc6c33f6cd87ff6369c0be00fd9e4f8e072ae452ca0efd0685fd19a150c607
 target: esp32s3
-version: 1.0.0
+version: 2.0.0
