@@ -289,21 +289,21 @@ void task_lora(void *pvParameters)
 
     while (true)
     {
-#ifdef CONFIG_E220_MODE_BUFFER
+        // BUFFERED MODE
         data_t buffer[CONFIG_E220_BUFFER_SIZE / sizeof(data_t)];
         // Read data from queue and put it in fifo
-        for (int i = 0; i < CONFIG_E220_BUFFER_SIZE / sizeof(data_t); i++)
+        for (int i = 0; i < CONFIG_E220_BUFFER_SIZE / sizeof(data_t); ++i)
         {
             xQueueReceive(xLoraQueue, &data, portMAX_DELAY);
             buffer[i] = data;
         }
         ESP_LOGI(TAG_LORA, "sending %d byte packet", CONFIG_E220_BUFFER_SIZE);
         uart_write_bytes(UART_NUM_2, (const void *)buffer, CONFIG_E220_BUFFER_SIZE);
-#else
-        xQueueReceive(xLoraQueue, &data, portMAX_DELAY);
-        ESP_LOGI(TAG_LORA, "sending %d byte packet", sizeof(data_t));
-        uart_write_bytes(UART_NUM_2, (const void *)&data, sizeof(data_t));
-#endif
+
+        // UNBUFFERED MODE
+        // xQueueReceive(xLoraQueue, &data, portMAX_DELAY);
+        // ESP_LOGI(TAG_LORA, "sending %d byte packet", sizeof(data_t));
+        // uart_write_bytes(UART_NUM_2, (const void *)&data, sizeof(data_t));
         vTaskSuspend(NULL);
     }
 }
