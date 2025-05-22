@@ -54,7 +54,8 @@
 typedef struct // size = 64 bytes
 {
     int32_t time;
-    uint32_t status;
+    uint16_t count;
+    uint16_t status;
 
     float pressure;
     float temperature;
@@ -98,6 +99,6 @@ extern SemaphoreHandle_t xStatusMutex;
 extern SemaphoreHandle_t xI2CMutex;
 
 // Status
-extern uint32_t STATUS;
+extern uint16_t STATUS;
 
 #endif

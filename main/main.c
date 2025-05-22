@@ -107,7 +107,7 @@ void task_buzzer_led(void *pvParameters)
     {
         // Use local copy of STATUS because of delays
         xSemaphoreTake(xStatusMutex, portMAX_DELAY);
-        int32_t status_local = STATUS;
+        int16_t status_local = STATUS;
         xSemaphoreGive(xStatusMutex);
 
         // If ARMED, blink LED and beep buzzer three times
@@ -134,7 +134,7 @@ void task_buzzer_led(void *pvParameters)
             gpio_set_level(BUZZER_GPIO, LOW);
             vTaskDelay(pdMS_TO_TICKS(1000));
         }
-        vTaskDelay(pdMS_TO_TICKS(100));
+        vTaskDelay(pdMS_TO_TICKS(5));
     }
 }
 
@@ -273,7 +273,7 @@ void app_main(void)
             }
         }
         xSemaphoreGive(xStatusMutex);
-
-        vTaskDelay(pdMS_TO_TICKS(100));
+            // mudei de 1 para 10 e acabou o problema do watchdogtime =)
+        vTaskDelay(pdMS_TO_TICKS(10));
     }
 }

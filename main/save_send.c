@@ -125,7 +125,10 @@ void task_sd(void *pvParameters)
         fwrite(buffer, sizeof(data_t), CONFIG_SD_BUFFER_SIZE / sizeof(data_t), f);
         fclose(f);
         ESP_LOGI(TAG_SD, "Data written to SD card");
+
+        vTaskDelay(pdMS_TO_TICKS(5));
     }
+    vTaskDelete(NULL);
 }
 
 // task_littlefs reads data from queue and writes it to LittleFS
@@ -250,7 +253,10 @@ void task_littlefs(void *pvParameters)
         fclose(f);
         used += sizeof(buffer);
         ESP_LOGI(TAG_LITTLEFS, "Data written to LittleFS.");
+
+        vTaskDelay(pdMS_TO_TICKS(5));
     }
+    vTaskDelete(NULL);
 }
 
 
@@ -304,6 +310,9 @@ void task_lora(void *pvParameters)
         // xQueueReceive(xLoraQueue, &data, portMAX_DELAY);
         // ESP_LOGI(TAG_LORA, "sending %d byte packet", sizeof(data_t));
         // uart_write_bytes(UART_NUM_2, (const void *)&data, sizeof(data_t));
-        vTaskSuspend(NULL);
+        // vTaskSuspend(NULL);
+
+        vTaskDelay(pdMS_TO_TICKS(5));
     }
+    vTaskDelete(NULL);
 }
