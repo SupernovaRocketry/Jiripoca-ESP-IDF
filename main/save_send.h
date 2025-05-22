@@ -16,8 +16,8 @@
 #define MAX_USED 0.8 // Maximum percentage of flash to be used by littlefs
 #define E220_BAUD_RATE 115200
 
-#endif
-
 void task_sd(void *pvParameters);
 void task_littlefs(void *pvParameters);
 void task_lora(void *pvParameters);
+
+#endif
