@@ -106,15 +106,17 @@ void task_nmea(void *pvParameters)
 
         total_bytes -= end - buffer;
 
-        vTaskDelay(pdMS_TO_TICKS(180));
+        vTaskDelay(pdMS_TO_TICKS(10));
     }
+    free(buffer);
+    vTaskDelete(NULL);
 }
 
 void init_bmp280(bmp280_t *dev_bmp)
 {
     // BMP280  initialization parameters
     bmp280_params_t params;
-    bmp280_init_default_params(&params);
+    ESP_ERROR_CHECK(bmp280_init_default_params(&params));
     params.standby = BMP280_STANDBY_05; // Standby time 0.5ms
 
     // BMP280 Initialization
@@ -153,7 +155,7 @@ void init_adc(adc_oneshot_unit_handle_t *adc_handle, adc_cali_handle_t *cali_han
         .bitwidth = ADC_BITWIDTH_DEFAULT,
     };
 
-    adc_oneshot_config_channel(*adc_handle, ADC_CHANNEL_4, &adc_channel);
+    ESP_ERROR_CHECK(adc_oneshot_config_channel(*adc_handle, ADC_CHANNEL_4, &adc_channel));
 
     adc_cali_curve_fitting_config_t cali_config = {
         .unit_id = ADC_UNIT_1,
@@ -162,7 +164,7 @@ void init_adc(adc_oneshot_unit_handle_t *adc_handle, adc_cali_handle_t *cali_han
         .bitwidth = ADC_BITWIDTH_DEFAULT,
     };
 
-    adc_cali_create_scheme_curve_fitting(&cali_config, cali_handle);
+    ESP_ERROR_CHECK(adc_cali_create_scheme_curve_fitting(&cali_config, &cali_handle));
 }
 
 void acquire_voltage(data_t *data, adc_oneshot_unit_handle_t *adc_handle, adc_cali_handle_t *cali_handle)
@@ -171,10 +173,10 @@ void acquire_voltage(data_t *data, adc_oneshot_unit_handle_t *adc_handle, adc_ca
     int voltage = 0;
 
     // Read voltage
-    adc_oneshot_read(*adc_handle, ADC_CHANNEL_4, &raw_voltage);
+    ESP_ERROR_CHECK(adc_oneshot_read(*adc_handle, ADC_CHANNEL_4, &raw_voltage));
 
     // Convert raw voltage to voltage
-    adc_cali_raw_to_voltage(*cali_handle, raw_voltage, &voltage);
+    ESP_ERROR_CHECK(adc_cali_raw_to_voltage(*cali_handle, raw_voltage, &voltage));
 
     // Update voltage
     data->voltage = (float)voltage * 2 / 1000;
@@ -243,11 +245,11 @@ void send_queues(data_t *data)
             xQueueSend(xLittleFSQueue, data, 0);
     }
 
-    // static int n = 0;
-    // if (n++ % 10 == 0) //This affects the frequency of the LoRa messages
-    // {
-    //     xQueueSend(xLoraQueue, data, 0); // Send to LoRa queue
-    // }
+    static int n = 0;
+    if (n++ % 10 == 0) //This affects the frequency of the LoRa messages
+    {
+        xQueueSend(xLoraQueue, data, 0); // Send to LoRa queue
+    }
 
     ESP_LOGI(TAG_ACQ, "Data sent to queues");
 }
@@ -291,20 +293,22 @@ void task_acquire(void *pvParameters)
         status_checks(&data);
 
         // Print data
-        ESP_LOGI(TAG_ACQ, "\tTime: %ld, Status: %ld V: %.2f\r\n"
+        ESP_LOGI(TAG_ACQ, "\tTime: %ld, \tCount: %d, Status: %d V: %.2f\r\n"
                           "\tBMP\t\tP: %.2f, T: %.2f, A: %.2f\r\n"
                           "\tAccel\t\tX: %.2f, Y: %.2f, Z: %.2f\r\n"
                           "\tGyro\t\tH: %.2f, P: %.2f, Y: %.2f\r\n"
-                          "\tGPS\t\tLat: %.5f, Lon: %.5f, A-GPS: %.2f",
-                 data.time, data.status, data.voltage,
+                          "\tGPS\t\tLat: %.5f, Lon: %.5f, A-GPS: %.2f\n"
+                          "----------------------------------------",
+                 data.time, data.count, data.status, data.voltage,
                  data.pressure, data.temperature, data.bmp_altitude,
                  data.accel_x, data.accel_y, data.accel_z,
                  data.rotation_x, data.rotation_y, data.rotation_z,
                  data.latitude, data.longitude, data.gps_altitude);
-
+        data.count++;
         send_queues(&data);
 
         // REDUCE AFTER OPTIMIZING CODE
         vTaskDelay(pdMS_TO_TICKS(10));
     }
+    vTaskDelete(NULL);
 }
