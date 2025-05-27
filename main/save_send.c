@@ -312,7 +312,7 @@ void task_lora(void *pvParameters)
         // uart_write_bytes(UART_NUM_2, (const void *)&data, sizeof(data_t));
         // vTaskSuspend(NULL);
 
-        vTaskDelay(pdMS_TO_TICKS(5));
+        vTaskDelay(pdMS_TO_TICKS(10));
     }
     vTaskDelete(NULL);
 }
