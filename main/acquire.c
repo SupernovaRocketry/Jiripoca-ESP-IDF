@@ -164,7 +164,7 @@ void init_adc(adc_oneshot_unit_handle_t *adc_handle, adc_cali_handle_t *cali_han
         .bitwidth = ADC_BITWIDTH_DEFAULT,
     };
 
-    ESP_ERROR_CHECK(adc_cali_create_scheme_curve_fitting(&cali_config, &cali_handle));
+    ESP_ERROR_CHECK(adc_cali_create_scheme_curve_fitting(&cali_config, cali_handle));
 }
 
 void acquire_voltage(data_t *data, adc_oneshot_unit_handle_t *adc_handle, adc_cali_handle_t *cali_handle)
