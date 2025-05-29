@@ -7,7 +7,6 @@ dependencies:
     component_hash: 25ea527f892761c4311831ecadfa0cb1a3a323501c43b4a8263639beec01ae57
     dependencies:
     - name: idf
-      registry_url: https://components.espressif.com
       require: private
       version: '>=4.0'
     source:
@@ -18,17 +17,28 @@ dependencies:
     component_hash: 1d8f346fe94debb00483f76d04b6648083f2d3505da811beccdbd0bd1f6c24cd
     dependencies:
     - name: idf
-      registry_url: https://components.espressif.com
       require: private
       version: '>=4.3'
     source:
       registry_url: https://components.espressif.com/
       type: service
     version: 1.11.0
+  truita/mpu9250:
+    component_hash: 3403bfddacef335397281d3191845d4e09c792e5fe62aff8689bcc67a388c645
+    dependencies:
+    - name: idf
+      require: private
+      version: '>=5.0'
+    source:
+      registry_url: https://components.espressif.com/
+      type: service
+    version: 1.0.1
 direct_dependencies:
+- dernasherbrezon/sx127x
 - idf
 - igrr/libnmea
 - joltwallet/littlefs
-manifest_hash: f6bc6c33f6cd87ff6369c0be00fd9e4f8e072ae452ca0efd0685fd19a150c607
+- truita/mpu9250
+manifest_hash: 4bc5cb07e0fedada5c5cc2b5aa2992611e329e99506480d3ffa63181fe4d3093
 target: esp32s3
 version: 2.0.0
