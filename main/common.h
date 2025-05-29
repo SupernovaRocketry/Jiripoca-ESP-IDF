@@ -16,8 +16,8 @@
 #include "esp_log.h"
 #include "esp_timer.h"
 
-#include "freertos/queue.h"
-#include "freertos/semphr.h"
+#include "driver/i2c_master.h"
+#include "driver/i2c_types.h"
 
 // ALTIMETER BOARD
 // CONFIG_ALTIMETER_VERSION_ASR3000_V3
