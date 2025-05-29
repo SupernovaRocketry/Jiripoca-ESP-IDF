@@ -1,11 +1,4 @@
 dependencies:
-  dernasherbrezon/sx127x:
-    component_hash: 98fa3fd80e015566ff47ecb4bf5d0d096fb25958f2345e1d440adb1ce8351349
-    dependencies: []
-    source:
-      registry_url: https://components.espressif.com/
-      type: service
-    version: 3.1.2
   idf:
     source:
       type: idf
@@ -33,7 +26,6 @@ dependencies:
       type: service
     version: 1.11.0
 direct_dependencies:
-- dernasherbrezon/sx127x
 - idf
 - igrr/libnmea
 - joltwallet/littlefs
