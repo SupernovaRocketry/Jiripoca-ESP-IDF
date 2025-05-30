@@ -42,7 +42,6 @@ This project uses the following components:
 It also uses the following managed components:
 
  - [LittleFS](https://components.espressif.com/components/joltwallet/littlefs)
- - [sx127x](https://components.espressif.com/components/dernasherbrezon/sx127x)
 
 ## Configuration
 

@@ -1,12 +1,38 @@
 dependencies:
+  espressif/cmake_utilities:
+    component_hash: 351350613ceafba240b761b4ea991e0f231ac7a9f59a9ee901f751bddc0bb18f
+    dependencies:
+    - name: idf
+      registry_url: https://components.espressif.com
+      require: private
+      version: '>=4.1'
+    source:
+      registry_url: https://components.espressif.com
+      type: service
+    version: 0.5.3
+  espressif/i2c_bus:
+    component_hash: e3dddc78baa172f4768f3973fbecbd6c6c1f2cb23cc6a36cf3132758be092482
+    dependencies:
+    - name: espressif/cmake_utilities
+      registry_url: https://components.espressif.com
+      require: private
+      version: 0.*
+    - name: idf
+      require: private
+      version: '>=4.0'
+    source:
+      registry_url: https://components.espressif.com
+      type: service
+    version: 1.4.0
   idf:
     source:
       type: idf
-    version: 5.4.1
+    version: 5.3.1
   igrr/libnmea:
     component_hash: 25ea527f892761c4311831ecadfa0cb1a3a323501c43b4a8263639beec01ae57
     dependencies:
     - name: idf
+      registry_url: https://components.espressif.com
       require: private
       version: '>=4.0'
     source:
@@ -17,15 +43,20 @@ dependencies:
     component_hash: 1d8f346fe94debb00483f76d04b6648083f2d3505da811beccdbd0bd1f6c24cd
     dependencies:
     - name: idf
+      registry_url: https://components.espressif.com
       require: private
       version: '>=4.3'
     source:
       registry_url: https://components.espressif.com/
       type: service
     version: 1.11.0
-  truita/mpu9250:
-    component_hash: 3403bfddacef335397281d3191845d4e09c792e5fe62aff8689bcc67a388c645
+  maucke/bmp280:
+    component_hash: ccbc6da1d40b0c989dff7198c1ae97f18de33d56ec8f64f962c7c3a6dc9bc71f
     dependencies:
+    - name: espressif/i2c_bus
+      registry_url: https://components.espressif.com
+      require: public
+      version: '*'
     - name: idf
       require: private
       version: '>=5.0'
@@ -34,11 +65,10 @@ dependencies:
       type: service
     version: 1.0.1
 direct_dependencies:
-- dernasherbrezon/sx127x
 - idf
 - igrr/libnmea
 - joltwallet/littlefs
-- truita/mpu9250
-manifest_hash: 4bc5cb07e0fedada5c5cc2b5aa2992611e329e99506480d3ffa63181fe4d3093
+- maucke/bmp280
+manifest_hash: 49cf137892dbae76ec45bb6679880ec0e61e49892335dbc8722b877f3d223404
 target: esp32s3
 version: 2.0.0
