@@ -212,11 +212,7 @@ void bmp280_acquire(data_t *data, bmp280_handle_t *dev_hdl)
     float temp_temperature = 0.0f;
     float temp_pressure = 0.0f;
     xSemaphoreTake(xI2CMutex, portMAX_DELAY);
-<<<<<<< HEAD
     esp_err_t result = bmp280_get_measurements(*dev_hdl, &temp_temperature, &temp_pressure);
-=======
-    esp_err_t result = bmp280_get_measurements(*dev_hdl, &(data->temperature), &(data->pressure));
->>>>>>> 86c918742d958decc02e8f9a56d231cbefefcee9
     if(result != ESP_OK)
         ESP_LOGE(TAG_BMP, "bmp280 device read failed (%s)", esp_err_to_name(result));
     data->temperature = temp_temperature;
