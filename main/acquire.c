@@ -202,7 +202,7 @@ void bmp280_initialize(bmp280_config_t *dev_cfg, bmp280_handle_t *dev_hdl)
     ESP_ERROR_CHECK(i2c_new_master_bus(&bus_config, &bus_handle));
     bmp280_init(bus_handle, dev_cfg, dev_hdl);
     if (*dev_hdl == NULL) {
-        ESP_LOGE(APP_TAG, "bmp280 handle init failed");
+        ESP_LOGE(TAG_BMP, "bmp280 handle init failed");
         assert(*dev_hdl);
     }
 }
