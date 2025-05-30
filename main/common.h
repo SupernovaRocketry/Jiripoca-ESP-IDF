@@ -16,9 +16,6 @@
 #include "esp_log.h"
 #include "esp_timer.h"
 
-#include "driver/i2c_master.h"
-#include "driver/i2c_types.h"
-
 // ALTIMETER BOARD
 // CONFIG_ALTIMETER_VERSION_ASR3000_V3
 #define BUZZER_GPIO 38

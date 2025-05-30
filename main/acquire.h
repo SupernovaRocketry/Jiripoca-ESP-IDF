@@ -10,6 +10,7 @@
 
 // ENABLE_BMP280
 #include "bmp280.h"
+#include "esp_system.h"
 
 // ENABLE_MPU9250
 #include "ahrs.h"
