@@ -1,6 +1,5 @@
 ## IDF Component Manager Manifest File
 dependencies:
-  maucke/bmp280: ^1.0.1
   igrr/libnmea: ^0.1.1
   joltwallet/littlefs: ==1.11.0
   ## Required IDF version
