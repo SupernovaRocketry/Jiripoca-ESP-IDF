@@ -364,6 +364,5 @@ void task_acquire(void *pvParameters)
         // REDUCE AFTER OPTIMIZING CODE
         vTaskDelay(pdMS_TO_TICKS(10));
     }
-    free(&cal);
     vTaskDelete(NULL);
 }
