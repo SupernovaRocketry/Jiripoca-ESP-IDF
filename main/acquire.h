@@ -13,11 +13,7 @@
 #include "esp_system.h"
 
 // ENABLE_MPU9250
-#include "ahrs.h"
 #include "mpu9250.h"
-#include "calibrate.h"
-#include "common9250.h"
-#include "i2cdev.h"
 
 // ENABLE_GPS
 #include "driver/uart.h"

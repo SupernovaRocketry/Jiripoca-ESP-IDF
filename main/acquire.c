@@ -156,74 +156,37 @@ void acquire_voltage(data_t *data, adc_oneshot_unit_handle_t *adc_handle, adc_ca
     data->voltage = (float)voltage * 2 / 1000;
 }
 
-static void transform_accel_gyro(vector_t *v)
+void mpu9250_init(mpu9250_t *mpu)
 {
-    float x = v->x;
-    float y = v->y;
-    float z = v->z;
-
-    v->x = -x;
-    v->y = -z;
-    v->z = -y;
+    i2c_master_bus_config_t bus_config = {.clk_source = I2C_CLK_SRC_DEFAULT,
+                                            .i2c_port = I2C_NUM_0,
+                                            .scl_io_num = I2C_SCL,
+                                            .sda_io_num = I2C_SDA,
+                                            .glitch_ignore_cnt = 7,
+                                            .flags.enable_internal_pullup = true};
+    i2c_master_bus_handle_t bus_handle;
+    ESP_ERROR_CHECK(i2c_new_master_bus(&bus_config, &bus_handle));
+    mpu9250_config_t mpu_config = {.gyro_enabled = 1,
+                                    .accel_enabled = 1,
+                                    .temp_enabled = 1,
+                                    .accel_filter_level = 6,
+                                    .gyro_temp_filter_level = 6};
+    ESP_ERROR_CHECK(mpu9250_begin(mpu, mpu_config, 0x68, bus_handle));
 }
 
-static void transform_mag(vector_t *v)
-{
-    float x = v->x;
-    float y = v->y;
-    float z = v->z;
-
-    v->x = -y;
-    v->y = z;
-    v->z = -x;
-}
-
-void mpu9250_init(calibration_t *cal)
-{
-    /*calibration_t cal = {
-        .mag_offset = {.x = 89.923828, .y = 25.347656, .z = 371.917969},
-        .mag_scale = {.x = 0.980390, .y = 0.972483, .z = 1.050749},
-        .accel_offset = {.x = 0.079194, .y = 0.030222, .z = -0.191995},
-        //.accel_offset = {.x = 0, .y = 0.015, .z = 0},
-        .accel_scale_lo = {.x = 1.028991, .y = 1.017323, .z = 0.925066},
-        .accel_scale_hi = {.x = -0.969137, .y = -0.981898, .z = -1.107134},
-        .gyro_bias_offset = {.x = -3.395939, .y = -0.302809, .z = -0.823139}};
-    */
-    *cal = (calibration_t){
-        .mag_offset = {.x = 25.183594, .y = 57.519531, .z = -62.648438},
-        .mag_scale = {.x = 1.513449, .y = 1.557811, .z = 1.434039},
-        .accel_offset = {.x = 0.020900, .y = 0.014688, .z = -0.002580},
-        .accel_scale_lo = {.x = -0.992052, .y = -0.990010, .z = -1.011147},
-        .accel_scale_hi = {.x = 1.013558, .y = 1.011903, .z = 1.019645},
-        .gyro_bias_offset = {.x = 0.303956, .y = -1.049768, .z = -0.403782}};
-    
-    xSemaphoreTake(xI2CMutex, portMAX_DELAY);
-    i2c_mpu9250_init(cal, I2C_SDA, I2C_SCL);
-    ahrs_init(SAMPLE_FREQ_Hz, 0.8);
-    set_full_scale_accel_range(MPU9250_ACCEL_FS_16);
-    xSemaphoreGive(xI2CMutex);
-}
-
-void acquire_mpu9250(data_t *data, vector_t *va, vector_t *vg, vector_t *vm)
+void acquire_mpu9250(data_t *data, mpu9250_t *mpu)
 {
     xSemaphoreTake(xI2CMutex, portMAX_DELAY);
-    // Get the Accelerometer, Gyroscope and Magnetometer values.
-    ESP_ERROR_CHECK(get_accel_gyro_mag(va, vg, vm));
+    if (mpu9250_update(mpu) != 1)
+      ESP_LOGE("MPU9250", "Failed to update MPU9250");
+    data->accel_x = mpu->accel.x;
+    data->accel_y = mpu->accel.y;
+    data->accel_z = mpu->accel.z;
+    data->rotation_x = mpu->gyro.x;
+    data->rotation_y = mpu->gyro.y;
+    data->rotation_z = mpu->gyro.z;
     xSemaphoreGive(xI2CMutex);
-    // Transform these values to the orientation of our device.
-    transform_accel_gyro(va);
-    transform_accel_gyro(vg);
-    transform_mag(vm);
-    // Apply the AHRS algorithm
-    ahrs_update(DEG2RAD(vg->x), DEG2RAD(vg->y), DEG2RAD(vg->z),
-                va->x, va->y, va->z,
-                vm->x, vm->y, vm->z);
-    data->accel_x = va->x * G;
-    data->accel_y = va->y * G;
-    data->accel_z = va->z * G;
-    ahrs_get_euler_in_degrees(&data->rotation_x, &data->rotation_y, &data->rotation_z);
     vTaskDelay(0);
-    pause9250();
 }
 
 static void i2c_bus_init(i2c_bus_handle_t *i2c_bus)
@@ -251,6 +214,7 @@ static esp_err_t i2c_sensor_bmp280_init(bmp280_handle_t *bmp280, i2c_bus_handle_
 
 void acquire_bmp280(data_t *data, bmp280_handle_t *bmp280, i2c_bus_handle_t *i2c_bus)
 {
+    xSemaphoreTake(xI2CMutex, portMAX_DELAY);
     if (ESP_OK == bmp280_read_pressure(*bmp280, &data->pressure))
         ESP_LOGI(TAG_BMP, "pressure:%f ", data->pressure);
     else
@@ -259,6 +223,7 @@ void acquire_bmp280(data_t *data, bmp280_handle_t *bmp280, i2c_bus_handle_t *i2c
         ESP_LOGI(TAG_BMP, "temperature:%f ", data->temperature);
     else
         ESP_LOGE(TAG_BMP, "Failed to read temperature from BMP280");
+    xSemaphoreGive(xI2CMutex);
     vTaskDelay(0);
 }
 
@@ -363,8 +328,8 @@ void task_acquire(void *pvParameters)
 
     calibration_t cal;
     // MPU9250 Initialization
-    mpu9250_init(&cal);
-    vector_t va, vg, vm;
+    mpu9250_t mpu;
+    mpu9250_init(&mpu);
 
     vTaskDelay(pdMS_TO_TICKS(1000));
     while (true)
@@ -378,7 +343,7 @@ void task_acquire(void *pvParameters)
         acquire_gps(&data);
 #endif
         acquire_bmp280(&data, &bmp280, &i2c_bus);
-        acquire_mpu9250(&data, &va, &vg, &vm);
+        acquire_mpu9250(&data, &mpu);
 
         acquire_voltage(&data, &adc_handle, &cali_handle);
 
