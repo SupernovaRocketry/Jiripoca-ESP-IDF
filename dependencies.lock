@@ -1,15 +1,4 @@
 dependencies:
-  espressif/cmake_utilities:
-    component_hash: 351350613ceafba240b761b4ea991e0f231ac7a9f59a9ee901f751bddc0bb18f
-    dependencies:
-    - name: idf
-      registry_url: https://components.espressif.com
-      require: private
-      version: '>=4.1'
-    source:
-      registry_url: https://components.espressif.com
-      type: service
-    version: 0.5.3
   idf:
     source:
       type: idf
@@ -83,6 +72,6 @@ direct_dependencies:
 - joltwallet/littlefs
 - k0i05/esp_bmp280
 - truita/mpu9250
-manifest_hash: 24bd1e311efd698a4590846fb3fcc4443657dac375b045cf97d0f17017fff672
+manifest_hash: 5d92dfd6e18ef38010c0fa743df3b5e544b8825067c9c9a60672664236d05e2d
 target: esp32s3
 version: 2.0.0
