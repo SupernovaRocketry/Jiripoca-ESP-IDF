@@ -218,7 +218,7 @@ void bmp280_acquire(data_t *data, bmp280_handle_t *dev_hdl)
     data->temperature = temp_temperature;
     data->pressure = temp_pressure;
     // BMP280 altitude calculation (barometric formula)
-    temp_altitude = 44330 * (1 - powf(data->pressure / 101325, 1 / 5.255));
+    float temp_altitude = 44330 * (1 - powf(data->pressure / 101325, 1 / 5.255));
 
     // Update max altitude
     if (temp_altitude > data->max_altitude)
