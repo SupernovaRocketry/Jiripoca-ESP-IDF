@@ -305,8 +305,6 @@ void task_acquire(void *pvParameters)
 
     data_t data = {0};
 
-    ESP_ERROR_CHECK(i2cdev_init());
-
     xTaskCreate(task_nmea, "NMEA", 4096 * 2, &data, 4, NULL);
 
     // ADC Initialization
@@ -326,7 +324,6 @@ void task_acquire(void *pvParameters)
         return;
     }
 
-    calibration_t cal;
     // MPU9250 Initialization
     mpu9250_t mpu;
     mpu9250_init(&mpu);
