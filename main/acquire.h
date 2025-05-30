@@ -9,8 +9,7 @@
 #include "esp_adc/adc_cali_scheme.h"
 
 // ENABLE_BMP280
-#include "bmp280.h"
-#include "esp_system.h"
+#include <bmp280.h>
 
 // ENABLE_MPU9250
 #include "mpu9250.h"

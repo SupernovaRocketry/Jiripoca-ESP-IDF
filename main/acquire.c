@@ -189,42 +189,21 @@ void acquire_mpu9250(data_t *data, mpu9250_t *mpu)
     vTaskDelay(0);
 }
 
-static void i2c_bus_init(i2c_bus_handle_t *i2c_bus)
+void bmp280_init(bmp280_config_t *dev_cfg, bmp280_handle_t *dev_hdl)
 {
-    i2c_config_t conf = {
-        .mode = I2C_MODE_MASTER,
-        .sda_io_num = I2C_SDA,
-        .scl_io_num = I2C_SCL,
-        .sda_pullup_en = GPIO_PULLUP_ENABLE,
-        .scl_pullup_en = GPIO_PULLUP_ENABLE,
-        .master = {0},
-        .clk_flags = 0,
-    };
-    conf.master.clk_speed = 400000;
-    *i2c_bus = i2c_bus_create(I2C_MASTER_NUM, &conf);
-    if (*i2c_bus == NULL)
-        ESP_LOGE(TAG_BMP, "Failed to create I2C bus");
+    // init device
+    bmp280_init(i2c0_bus_hdl, dev_cfg, dev_hdl);
+    if (*dev_hdl == NULL) {
+        ESP_LOGE(APP_TAG, "bmp280 handle init failed");
+        assert(*dev_hdl);
+    }
 }
 
-static esp_err_t i2c_sensor_bmp280_init(bmp280_handle_t *bmp280, i2c_bus_handle_t *i2c_bus)
+void bmp280_acquire(data_t *data, bmp280_handle_t *dev_hdl)
 {
-    *bmp280 = bmp280_create(*i2c_bus, BMP280_I2C_ADDRESS);
-    return bmp280_default_init(bmp280);
-}
-
-void acquire_bmp280(data_t *data, bmp280_handle_t *bmp280, i2c_bus_handle_t *i2c_bus)
-{
-    xSemaphoreTake(xI2CMutex, portMAX_DELAY);
-    if (ESP_OK == bmp280_read_pressure(*bmp280, &data->pressure))
-        ESP_LOGI(TAG_BMP, "pressure:%f ", data->pressure);
-    else
-        ESP_LOGE(TAG_BMP, "Failed to read pressure from BMP280");
-    if (ESP_OK == bmp280_read_temperature(*bmp280, &data->temperature))
-        ESP_LOGI(TAG_BMP, "temperature:%f ", data->temperature);
-    else
-        ESP_LOGE(TAG_BMP, "Failed to read temperature from BMP280");
-    xSemaphoreGive(xI2CMutex);
-    vTaskDelay(0);
+    esp_err_t result = bmp280_get_measurements(*dev_hdl, &data->temperature, &data->pressure);
+    if(result != ESP_OK)
+        ESP_LOGE(APP_TAG, "bmp280 device read failed (%s)", esp_err_to_name(result));
 }
 
 // status_checks checks if the rocket is flying, motor is cutoff, or landed
@@ -312,17 +291,10 @@ void task_acquire(void *pvParameters)
     adc_cali_handle_t cali_handle;
     init_adc(&adc_handle, &cali_handle);
 
-    // I2C Bus Initialization for BMP280
-    i2c_bus_handle_t i2c_bus = NULL;
-    static bmp280_handle_t bmp280 = NULL;
-
-    i2c_bus_init(&i2c_bus);
-    if(i2c_sensor_bmp280_init(&bmp280, &i2c_bus) != ESP_OK)
-    {
-        ESP_LOGE(TAG_ACQ, "Failed to initialize BMP280 sensor");
-        vTaskDelete(NULL);
-        return;
-    }
+    // BMP280 Initialization
+    bmp280_config_t dev_cfg = I2C_BMP280_CONFIG_DEFAULT;
+    bmp280_handle_t dev_hdl;
+    bmp280_init(&dev_cfg, &dev_hdl);
 
     // MPU9250 Initialization
     mpu9250_t mpu;
@@ -339,7 +311,7 @@ void task_acquire(void *pvParameters)
 #ifdef ENABLE_GPS2
         acquire_gps(&data);
 #endif
-        acquire_bmp280(&data, &bmp280, &i2c_bus);
+
         acquire_mpu9250(&data, &mpu);
 
         acquire_voltage(&data, &adc_handle, &cali_handle);
@@ -364,5 +336,6 @@ void task_acquire(void *pvParameters)
         // REDUCE AFTER OPTIMIZING CODE
         vTaskDelay(pdMS_TO_TICKS(10));
     }
+    bmp280_delete(dev_hdl);
     vTaskDelete(NULL);
 }
