@@ -209,10 +209,23 @@ void bmp280_initialize(bmp280_config_t *dev_cfg, bmp280_handle_t *dev_hdl)
 
 void bmp280_acquire(data_t *data, bmp280_handle_t *dev_hdl)
 {
+    float temp_temperature = 0.0f;
+    float temp_pressure = 0.0f;
     xSemaphoreTake(xI2CMutex, portMAX_DELAY);
-    esp_err_t result = bmp280_get_measurements(*dev_hdl, &data->temperature, &data->pressure);
+    esp_err_t result = bmp280_get_measurements(*dev_hdl, &temp_temperature, &temp_pressure);
     if(result != ESP_OK)
         ESP_LOGE(TAG_BMP, "bmp280 device read failed (%s)", esp_err_to_name(result));
+    data->temperature = temp_temperature;
+    data->pressure = temp_pressure;
+    // BMP280 altitude calculation (barometric formula)
+    temp_altitude = 44330 * (1 - powf(data->pressure / 101325, 1 / 5.255));
+
+    // Update max altitude
+    if (temp_altitude > data->max_altitude)
+    {
+        data->max_altitude = temp_altitude;
+    }
+    data->bmp_altitude = temp_altitude;
     xSemaphoreGive(xI2CMutex);
 }
 
