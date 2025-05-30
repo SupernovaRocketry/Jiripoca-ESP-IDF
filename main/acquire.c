@@ -189,10 +189,18 @@ void acquire_mpu9250(data_t *data, mpu9250_t *mpu)
     vTaskDelay(0);
 }
 
-void bmp280_init(bmp280_config_t *dev_cfg, bmp280_handle_t *dev_hdl)
+void bmp280_initialize(bmp280_config_t *dev_cfg, bmp280_handle_t *dev_hdl)
 {
     // init device
-    bmp280_init(i2c0_bus_hdl, dev_cfg, dev_hdl);
+    i2c_master_bus_config_t bus_config = {.clk_source = I2C_CLK_SRC_DEFAULT,
+                                            .i2c_port = I2C_NUM_0,
+                                            .scl_io_num = I2C_SCL,
+                                            .sda_io_num = I2C_SDA,
+                                            .glitch_ignore_cnt = 7,
+                                            .flags.enable_internal_pullup = true};
+    i2c_master_bus_handle_t bus_handle;
+    ESP_ERROR_CHECK(i2c_new_master_bus(&bus_config, &bus_handle));
+    bmp280_init(bus_handle, dev_cfg, dev_hdl);
     if (*dev_hdl == NULL) {
         ESP_LOGE(APP_TAG, "bmp280 handle init failed");
         assert(*dev_hdl);
@@ -201,9 +209,11 @@ void bmp280_init(bmp280_config_t *dev_cfg, bmp280_handle_t *dev_hdl)
 
 void bmp280_acquire(data_t *data, bmp280_handle_t *dev_hdl)
 {
+    xSemaphoreTake(xI2CMutex, portMAX_DELAY);
     esp_err_t result = bmp280_get_measurements(*dev_hdl, &data->temperature, &data->pressure);
     if(result != ESP_OK)
-        ESP_LOGE(APP_TAG, "bmp280 device read failed (%s)", esp_err_to_name(result));
+        ESP_LOGE(TAG_BMP, "bmp280 device read failed (%s)", esp_err_to_name(result));
+    xSemaphoreGive(xI2CMutex);
 }
 
 // status_checks checks if the rocket is flying, motor is cutoff, or landed
@@ -294,7 +304,7 @@ void task_acquire(void *pvParameters)
     // BMP280 Initialization
     bmp280_config_t dev_cfg = I2C_BMP280_CONFIG_DEFAULT;
     bmp280_handle_t dev_hdl;
-    bmp280_init(&dev_cfg, &dev_hdl);
+    bmp280_initialize(&dev_cfg, &dev_hdl);
 
     // MPU9250 Initialization
     mpu9250_t mpu;
