@@ -159,7 +159,7 @@ void acquire_voltage(data_t *data, adc_oneshot_unit_handle_t *adc_handle, adc_ca
 void mpu9250_init(mpu9250_t *mpu)
 {
     i2c_master_bus_config_t bus_config = {.clk_source = I2C_CLK_SRC_DEFAULT,
-                                            .i2c_port = I2C_NUM_0,
+                                            .i2c_port = I2C_NUM_1,
                                             .scl_io_num = I2C_SCL,
                                             .sda_io_num = I2C_SDA,
                                             .glitch_ignore_cnt = 7,
@@ -202,7 +202,7 @@ void bmp280_initialize(bmp280_config_t *dev_cfg, bmp280_handle_t *dev_hdl)
     ESP_ERROR_CHECK(i2c_new_master_bus(&bus_config, &bus_handle));
     bmp280_init(bus_handle, dev_cfg, dev_hdl);
     if (*dev_hdl == NULL) {
-        ESP_LOGE(APP_TAG, "bmp280 handle init failed");
+        ESP_LOGE(TAG_BMP, "bmp280 handle init failed");
         assert(*dev_hdl);
     }
 }
@@ -212,7 +212,11 @@ void bmp280_acquire(data_t *data, bmp280_handle_t *dev_hdl)
     float temp_temperature = 0.0f;
     float temp_pressure = 0.0f;
     xSemaphoreTake(xI2CMutex, portMAX_DELAY);
+<<<<<<< HEAD
     esp_err_t result = bmp280_get_measurements(*dev_hdl, &temp_temperature, &temp_pressure);
+=======
+    esp_err_t result = bmp280_get_measurements(*dev_hdl, &(data->temperature), &(data->pressure));
+>>>>>>> 86c918742d958decc02e8f9a56d231cbefefcee9
     if(result != ESP_OK)
         ESP_LOGE(TAG_BMP, "bmp280 device read failed (%s)", esp_err_to_name(result));
     data->temperature = temp_temperature;
@@ -316,6 +320,7 @@ void task_acquire(void *pvParameters)
 
     // BMP280 Initialization
     bmp280_config_t dev_cfg = I2C_BMP280_CONFIG_DEFAULT;
+    dev_cfg.i2c_address = 0x76;
     bmp280_handle_t dev_hdl;
     bmp280_initialize(&dev_cfg, &dev_hdl);
 
