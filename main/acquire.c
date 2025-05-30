@@ -8,7 +8,6 @@
 static const char *TAG_GPS = "GPS";
 static const char *TAG_ACQ = "Acquire";
 static const char *TAG_BMP = "BMP280";
-static const char *TAG_MPU = "MPU9250";
 
 void task_nmea(void *pvParameters)
 {
@@ -190,7 +189,6 @@ void mpu9250_init(calibration_t *cal)
         .accel_scale_hi = {.x = -0.969137, .y = -0.981898, .z = -1.107134},
         .gyro_bias_offset = {.x = -3.395939, .y = -0.302809, .z = -0.823139}};
     */
-    calibration_t *cal;
     *cal = (calibration_t){
         .mag_offset = {.x = 25.183594, .y = 57.519531, .z = -62.648438},
         .mag_scale = {.x = 1.513449, .y = 1.557811, .z = 1.434039},

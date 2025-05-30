@@ -17,6 +17,7 @@
 #include "mpu9250.h"
 #include "calibrate.h"
 #include "common9250.h"
+#include "i2cdev.h"
 
 // ENABLE_GPS
 #include "driver/uart.h"
