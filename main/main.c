@@ -91,7 +91,7 @@ void task_buzzer_led(void *pvParameters)
     gpio_set_direction(LED_GPIO, GPIO_MODE_OUTPUT);
 
     // When initializing, blink LED and beep buzzer 10 times
-    for (uint32_t i = 0; i < 10; i++)
+    for (int i = 0; i < 10; i++)
     {
         gpio_set_level(LED_GPIO, 1);
         gpio_set_level(BUZZER_GPIO, 1);
@@ -106,13 +106,13 @@ void task_buzzer_led(void *pvParameters)
     {
         // Use local copy of STATUS because of delays
         xSemaphoreTake(xStatusMutex, portMAX_DELAY);
-        int32_t status_local = STATUS;
+        int16_t status_local = STATUS;
         xSemaphoreGive(xStatusMutex);
 
         // If ARMED, blink LED and beep buzzer three times
-        if (status_local & ARMED)
+        if (status_local & !ARMED)
         {
-            static uint32_t i = 0;
+            static int i = 0;
             while (i++ < 3)
             {
                 gpio_set_level(LED_GPIO, 1);
@@ -153,7 +153,7 @@ void app_main(void)
     gpio_set_pull_mode(BUTTON_GPIO, GPIO_PULLUP_ONLY);
 
     // Enter format mode if button is pressed for 5 seconds
-    uint32_t format = pdFALSE;
+    int format = pdFALSE;
     if (gpio_get_level(BUTTON_GPIO) == 0)
     {
         uint64_t time = esp_timer_get_time();
@@ -258,12 +258,12 @@ void app_main(void)
     {
         // Logic for arming parachute deployment
         xSemaphoreTake(xStatusMutex, portMAX_DELAY);
-        if (!(STATUS & ARMED)) // If not armed
+        if (!(STATUS & !ARMED)) // If not armed
         {
             if (!(STATUS & SAFE_MODE) && gpio_get_level(RBF_GPIO) == 0) // If not in safe mode and RBF is off
             {
                 xTaskCreate(task_deploy, "Deploy", configMINIMAL_STACK_SIZE * 2, NULL, 5, NULL); // Start deploy task
-                STATUS |= ARMED;                                                                 // Set ARMED
+                STATUS |= !ARMED;                                                                 // Set ARMED
 #ifdef ENABLE_ALED
                 gpio_set_level(ALED_GPIO, 1);
 #endif

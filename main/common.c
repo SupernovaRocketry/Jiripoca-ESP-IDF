@@ -15,4 +15,4 @@ SemaphoreHandle_t xStatusMutex = NULL;
 SemaphoreHandle_t xI2CMutex = NULL;
 
 // Status
-uint32_t STATUS = 0;
+uint16_t STATUS = 0;

@@ -14,28 +14,34 @@ void task_nmea(void *pvParameters)
         .data_bits = UART_DATA_8_BITS,
         .parity = UART_PARITY_DISABLE,
         .stop_bits = UART_STOP_BITS_1,
-        .flow_ctrl = UART_HW_FLOWCTRL_DISABLE};
+        .flow_ctrl = UART_HW_FLOWCTRL_DISABLE,
+        .source_clk = UART_SCLK_DEFAULT
+    };
     ESP_ERROR_CHECK(uart_param_config(UART_NUM_1, &uart_config));
     ESP_ERROR_CHECK(uart_set_pin(UART_NUM_1,
-                                 UART_PIN_NO_CHANGE, GPS_RX,
+                                 GPS_TX, GPS_RX,
                                  UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE));
-    ESP_ERROR_CHECK(uart_driver_install(UART_NUM_1, 1024 * 2, 0, 0, NULL, 0));
+    ESP_ERROR_CHECK(uart_driver_install(UART_NUM_1, 1024 * 2, 0, 0, NULL, 0)); // UART_RX_BUF_SIZE == 1024
 
     // Configure a temporary buffer for the incoming data
     char *buffer = (char *)malloc(1024 + 1);
     size_t total_bytes = 0;
     while (1)
     {
-
+        // ESP_LOGI(TAG_GPS, "PASSEI AQ1\n");
         // Read data from the UART
         int read_bytes = uart_read_bytes(UART_NUM_1,
                                          (uint8_t *)buffer + total_bytes,
                                          1024 - total_bytes, pdMS_TO_TICKS(20));
+
+        if (read_bytes == -1)
+            ESP_LOGE(TAG_GPS, "ERRO READ_BYTES\n");
         if (read_bytes <= 0)
         {
+            // ESP_LOGE(TAG_GPS, "MORRI AQ1\n");
             continue;
         }
-
+        // ESP_LOGI(TAG_GPS, "PASSEI AQ2\n");
         nmea_s *data;
         total_bytes += read_bytes;
 
@@ -43,16 +49,19 @@ void task_nmea(void *pvParameters)
         char *start = memchr(buffer, '$', total_bytes);
         if (start == NULL)
         {
+            ESP_LOGE(TAG_GPS, "START NOT FOUND\n");
             total_bytes = 0;
             continue;
         }
-
+        // ESP_LOGI(TAG_GPS, "PASSEI AQ3\n");
         /* find end of line */
         char *end = memchr(start, '\r', total_bytes - (start - buffer));
         if (NULL == end || '\n' != *(++end))
         {
+            ESP_LOGE(TAG_GPS, "END NOT FOUND\n");
             continue;
         }
+        // ESP_LOGI(TAG_GPS, "PASSEI AQ4\n");
         end[-1] = NMEA_END_CHAR_1;
         end[0] = NMEA_END_CHAR_2;
 
@@ -60,19 +69,25 @@ void task_nmea(void *pvParameters)
         data = nmea_parse(start, end - start + 1, 0);
         if (data == NULL)
         {
+            // ESP_LOGE(TAG_GPS, "MORRI AQ4\n");
             ESP_LOGI(TAG_GPS, "Failed to parse the sentence!\n");
             ESP_LOGI(TAG_GPS, "  Type: %.5s (%d)\n", start + 1, nmea_get_type(start));
         }
         else
         {
+            // ESP_LOGI(TAG_GPS, "PASSEI AQ5\n");
             if (data->errors != 0)
             {
+                // ESP_LOGE(TAG_GPS, "MORRI AQ5\n");
                 ESP_LOGI(TAG_GPS, "WARN: The sentence struct contains parse errors!");
             }
 
             if (NMEA_GPGGA == data->type)
             {
                 nmea_gpgga_s *gpgga = (nmea_gpgga_s *)data;
+                ESP_LOGI(TAG_GPS, "GPGGA sentence\n");
+                ESP_LOGI(TAG_GPS, "Number of satellites: %d\n", gpgga->n_satellites);
+                ESP_LOGI(TAG_GPS, "Altitude: %f %c\n", gpgga->altitude, gpgga->altitude_unit);
                 ackdata->latitude = gpgga->latitude.degrees + gpgga->latitude.minutes / 60;
                 if (gpgga->latitude.cardinal == NMEA_CARDINAL_DIR_SOUTH)
                 {
@@ -84,24 +99,28 @@ void task_nmea(void *pvParameters)
                     ackdata->longitude = -ackdata->longitude;
                 }
                 ackdata->gps_altitude = gpgga->altitude;
+                // ESP_LOGI(TAG_GPS, "PASSEI AQ6\n");
             }
             nmea_free(data);
         }
 
+        // ESP_LOGI(TAG_GPS, "PASSEI AQ7\n");
         // buffer empty?
         if (end == buffer + total_bytes)
         {
+            // ESP_LOGE(TAG_GPS, "MORRI AQ6\n");
             total_bytes = 0;
             continue;
         }
-
+        // ESP_LOGI(TAG_GPS, "PASSEI AQ8\n");
         // copy rest of buffer to beginning
         if (buffer != memmove(buffer, end, total_bytes - (end - buffer)))
         {
+            // ESP_LOGE(TAG_GPS, "MORRI AQ7\n");
             total_bytes = 0;
             continue;
         }
-
+        // ESP_LOGI(TAG_GPS, "PASSEI AQ9\n");
         total_bytes -= end - buffer;
 
         vTaskDelay(pdMS_TO_TICKS(180));
@@ -393,7 +412,7 @@ void send_queues(data_t *data)
 {
     if (!(data->status & LANDED)) // If not landed, send to queues
     {
-        if ((data->status & ARMED)) // If armed, send to task_deploy
+        if ((data->status & !ARMED)) // If armed, send to task_deploy
             xQueueSend(xAltQueue, &data->bmp_altitude, 0);
         xQueueSend(xSDQueue, data, 0);  // Send to SD card queue
         if (!(data->status & LFS_FULL)) // If LittleFS is not full, send to LittleFS queue
@@ -495,16 +514,18 @@ void task_acquire(void *pvParameters)
         status_checks(&data);
 
         // Print data
-        ESP_LOGI(TAG_ACQ, "\tTime: %ld, Status: %ld V: %.2f\r\n"
+        ESP_LOGI(TAG_ACQ, "\tTime\t: %ld, \tCount: %d, Status: %d, V: %.2f\r\n"
                           "\tBMP\t\tP: %.2f, T: %.2f, A: %.2f\r\n"
                           "\tAccel\t\tX: %.2f, Y: %.2f, Z: %.2f\r\n"
                           "\tGyro\t\tH: %.2f, P: %.2f, Y: %.2f\r\n"
                           "\tGPS\t\tLat: %.5f, Lon: %.5f, A-GPS: %.2f",
-                 data.time, data.status, data.voltage,
+                 data.time, data.count, data.status, data.voltage,
                  data.pressure, data.temperature, data.bmp_altitude,
                  data.accel_x, data.accel_y, data.accel_z,
                  data.rotation_x, data.rotation_y, data.rotation_z,
                  data.latitude, data.longitude, data.gps_altitude);
+
+        data.count++;
 
         send_queues(&data);
 

@@ -2,7 +2,7 @@ import struct
 import csv
 
 # Define the struct format
-data_struct_format = '1l 1L 4f 3f 3f 4f'
+data_struct_format = '1l 2H 4f 3f 3f 4f'
 gps_struct_format = '2H 1I 3H 1I'
 
 # Calculate the size of the struct in bytes
@@ -17,7 +17,7 @@ def decode_and_write_to_csv(file_path, output_csv_path):
 
         # Write header to CSV
         header = [
-            'Time', 'Status', 'Pressure', 'Temperature', 'BMP Altitude', 'Max Altitude',
+            'Time', 'Count', 'Status', 'Pressure', 'Temperature', 'BMP Altitude', 'Max Altitude',
             'Accel_X', 'Accel_Y', 'Accel_Z', 'Rotation_X', 'Rotation_Y', 'Rotation_Z',
             'Latitude', 'Longitude', 'GPS Altitude', 'Voltage'
         ]

@@ -37,6 +37,7 @@
 #define MAIN_GPIO 47
 #define RBF_GPIO 4
 #define GPS_RX 14
+#define GPS_TX 21
 #define I2C_SCL 9
 #define I2C_SDA 8
 #define SD_MOSI 11
@@ -89,7 +90,8 @@
 typedef struct // size = 64 bytes
 {
     int32_t time;
-    uint32_t status;
+    uint16_t count;
+    uint16_t status;
 
     float pressure;
     float temperature;
@@ -133,6 +135,6 @@ extern SemaphoreHandle_t xStatusMutex;
 extern SemaphoreHandle_t xI2CMutex;
 
 // Status
-extern uint32_t STATUS;
+extern uint16_t STATUS;
 
 #endif
