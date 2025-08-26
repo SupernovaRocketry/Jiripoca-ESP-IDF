@@ -1,8 +1,13 @@
 #include "acquire.h"
 
+#define I2C_MASTER_NUM I2C_NUM_0
+#define I2C_MASTER_FREQ_HZ 100000
+#define BMP280_I2C_ADDRESS (0x76)
+
 // TAGS
 static const char *TAG_GPS = "GPS";
 static const char *TAG_ACQ = "Acquire";
+static const char *TAG_BMP = "BMP280";
 
 void task_nmea(void *pvParameters)
 {
@@ -13,8 +18,7 @@ void task_nmea(void *pvParameters)
         .data_bits = UART_DATA_8_BITS,
         .parity = UART_PARITY_DISABLE,
         .stop_bits = UART_STOP_BITS_1,
-        .flow_ctrl = UART_HW_FLOWCTRL_DISABLE
-    };
+        .flow_ctrl = UART_HW_FLOWCTRL_DISABLE};
     ESP_ERROR_CHECK(uart_param_config(UART_NUM_1, &uart_config));
     ESP_ERROR_CHECK(uart_set_pin(UART_NUM_1,
                                  UART_PIN_NO_CHANGE, GPS_RX,
@@ -31,7 +35,8 @@ void task_nmea(void *pvParameters)
         int read_bytes = uart_read_bytes(UART_NUM_1,
                                          (uint8_t *)buffer + total_bytes,
                                          1024 - total_bytes, pdMS_TO_TICKS(20));
-        if (read_bytes <= 0) continue;
+        if (read_bytes <= 0)
+            continue;
 
         nmea_s *data;
         total_bytes += read_bytes;
@@ -84,7 +89,7 @@ void task_nmea(void *pvParameters)
 
                 if (gpgga->longitude.cardinal == NMEA_CARDINAL_DIR_WEST)
                     acquire_data->longitude = -acquire_data->longitude;
-                    
+
                 acquire_data->gps_altitude = gpgga->altitude;
             }
             nmea_free(data);
@@ -112,42 +117,11 @@ void task_nmea(void *pvParameters)
     vTaskDelete(NULL);
 }
 
-void init_bmp280(bmp280_t *dev_bmp)
-{
-    // BMP280  initialization parameters
-    bmp280_params_t params;
-    ESP_ERROR_CHECK(bmp280_init_default_params(&params));
-    params.standby = BMP280_STANDBY_05; // Standby time 0.5ms
-
-    // BMP280 Initialization
-    ESP_ERROR_CHECK(bmp280_init_desc(dev_bmp, BMP280_I2C_ADDRESS_0, 0, I2C_SDA, I2C_SCL));
-    ESP_ERROR_CHECK(bmp280_init(dev_bmp, &params));
-}
-
-void acquire_bmp280(data_t *data, bmp280_t *dev_bmp)
-{
-    float temp_altitude = 0;
-
-    // BMP280 read
-    if (bmp280_read_float(dev_bmp, &data->temperature, &data->pressure, NULL) != ESP_OK)
-        ESP_LOGE(TAG_ACQ, "Temperature/pressure reading failed");
-
-    // BMP280 altitude calculation (barometric formula)
-    temp_altitude = 44330 * (1 - powf(data->pressure / 101325, 1 / 5.255));
-
-    // Update max altitude
-    if (temp_altitude > data->max_altitude)
-        data->max_altitude = temp_altitude;
-
-    data->bmp_altitude = temp_altitude;
-}
-
 void init_adc(adc_oneshot_unit_handle_t *adc_handle, adc_cali_handle_t *cali_handle)
 {
     adc_oneshot_unit_init_cfg_t init_config = {
         .unit_id = ADC_UNIT_1,
-        .ulp_mode = ADC_ULP_MODE_DISABLE
-    };
+        .ulp_mode = ADC_ULP_MODE_DISABLE};
     adc_oneshot_new_unit(&init_config, adc_handle);
 
     adc_oneshot_chan_cfg_t adc_channel = {
@@ -180,6 +154,79 @@ void acquire_voltage(data_t *data, adc_oneshot_unit_handle_t *adc_handle, adc_ca
 
     // Update voltage
     data->voltage = (float)voltage * 2 / 1000;
+}
+
+void mpu9250_init(mpu9250_t *mpu)
+{
+    i2c_master_bus_config_t bus_config = {.clk_source = I2C_CLK_SRC_DEFAULT,
+                                            .i2c_port = I2C_NUM_1,
+                                            .scl_io_num = I2C_SCL,
+                                            .sda_io_num = I2C_SDA,
+                                            .glitch_ignore_cnt = 7,
+                                            .flags.enable_internal_pullup = true};
+    i2c_master_bus_handle_t bus_handle;
+    ESP_ERROR_CHECK(i2c_new_master_bus(&bus_config, &bus_handle));
+    mpu9250_config_t mpu_config = {.gyro_enabled = 1,
+                                    .accel_enabled = 1,
+                                    .temp_enabled = 1,
+                                    .accel_filter_level = 6,
+                                    .gyro_temp_filter_level = 6};
+    ESP_ERROR_CHECK(mpu9250_begin(mpu, mpu_config, 0x68, bus_handle));
+}
+
+void acquire_mpu9250(data_t *data, mpu9250_t *mpu)
+{
+    xSemaphoreTake(xI2CMutex, portMAX_DELAY);
+    if (mpu9250_update(mpu) != 1)
+      ESP_LOGE("MPU9250", "Failed to update MPU9250");
+    data->accel_x = mpu->accel.x;
+    data->accel_y = mpu->accel.y;
+    data->accel_z = mpu->accel.z;
+    data->rotation_x = mpu->gyro.x;
+    data->rotation_y = mpu->gyro.y;
+    data->rotation_z = mpu->gyro.z;
+    xSemaphoreGive(xI2CMutex);
+    vTaskDelay(0);
+}
+
+void bmp280_initialize(bmp280_config_t *dev_cfg, bmp280_handle_t *dev_hdl)
+{
+    // init device
+    i2c_master_bus_config_t bus_config = {.clk_source = I2C_CLK_SRC_DEFAULT,
+                                            .i2c_port = I2C_NUM_0,
+                                            .scl_io_num = I2C_SCL,
+                                            .sda_io_num = I2C_SDA,
+                                            .glitch_ignore_cnt = 7,
+                                            .flags.enable_internal_pullup = true};
+    i2c_master_bus_handle_t bus_handle;
+    ESP_ERROR_CHECK(i2c_new_master_bus(&bus_config, &bus_handle));
+    bmp280_init(bus_handle, dev_cfg, dev_hdl);
+    if (*dev_hdl == NULL) {
+        ESP_LOGE(TAG_BMP, "bmp280 handle init failed");
+        assert(*dev_hdl);
+    }
+}
+
+void bmp280_acquire(data_t *data, bmp280_handle_t *dev_hdl)
+{
+    float temp_temperature = 0.0f;
+    float temp_pressure = 0.0f;
+    xSemaphoreTake(xI2CMutex, portMAX_DELAY);
+    esp_err_t result = bmp280_get_measurements(*dev_hdl, &temp_temperature, &temp_pressure);
+    if(result != ESP_OK)
+        ESP_LOGE(TAG_BMP, "bmp280 device read failed (%s)", esp_err_to_name(result));
+    data->temperature = temp_temperature;
+    data->pressure = temp_pressure;
+    // BMP280 altitude calculation (barometric formula)
+    float temp_altitude = 44330 * (1 - powf(data->pressure / 101325, 1 / 5.255));
+
+    // Update max altitude
+    if (temp_altitude > data->max_altitude)
+    {
+        data->max_altitude = temp_altitude;
+    }
+    data->bmp_altitude = temp_altitude;
+    xSemaphoreGive(xI2CMutex);
 }
 
 // status_checks checks if the rocket is flying, motor is cutoff, or landed
@@ -246,7 +293,7 @@ void send_queues(data_t *data)
     }
 
     static int n = 0;
-    if (n++ % 10 == 0) //This affects the frequency of the LoRa messages
+    if (n++ % 10 == 0) // This affects the frequency of the LoRa messages
     {
         xQueueSend(xLoraQueue, data, 0); // Send to LoRa queue
     }
@@ -260,22 +307,26 @@ void task_acquire(void *pvParameters)
 
     data_t data = {0};
 
-    ESP_ERROR_CHECK(i2cdev_init());
-
-    // BMP280 Initialization
-    bmp280_t dev_bmp;
-    memset(&dev_bmp, 0, sizeof(bmp280_t));
-    init_bmp280(&dev_bmp);
-
-    xTaskCreate(task_nmea, "nmea task", 4096 * 2, &data, 4, NULL);
+    xTaskCreate(task_nmea, "NMEA", 4096 * 2, &data, 4, NULL);
 
     // ADC Initialization
     adc_oneshot_unit_handle_t adc_handle;
     adc_cali_handle_t cali_handle;
     init_adc(&adc_handle, &cali_handle);
 
+    // BMP280 Initialization
+    bmp280_config_t dev_cfg = I2C_BMP280_CONFIG_DEFAULT;
+    dev_cfg.i2c_address = 0x76;
+    bmp280_handle_t dev_hdl;
+    bmp280_initialize(&dev_cfg, &dev_hdl);
+
+    // MPU9250 Initialization
+    mpu9250_t mpu;
+    mpu9250_init(&mpu);
+
     vTaskDelay(pdMS_TO_TICKS(1000));
-    while (true) {
+    while (true)
+    {
         // Time and status update
         data.time = (int32_t)(esp_timer_get_time() / 1000);
         xSemaphoreTake(xStatusMutex, portMAX_DELAY);
@@ -284,10 +335,9 @@ void task_acquire(void *pvParameters)
 #ifdef ENABLE_GPS2
         acquire_gps(&data);
 #endif
-        acquire_bmp280(&data, &dev_bmp);
-#ifdef ENABLE_MPU9250
-        acquire_mpu9250(&data);
-#endif
+
+        acquire_mpu9250(&data, &mpu);
+
         acquire_voltage(&data, &adc_handle, &cali_handle);
 
         status_checks(&data);
@@ -310,5 +360,6 @@ void task_acquire(void *pvParameters)
         // REDUCE AFTER OPTIMIZING CODE
         vTaskDelay(pdMS_TO_TICKS(10));
     }
+    bmp280_delete(dev_hdl);
     vTaskDelete(NULL);
 }

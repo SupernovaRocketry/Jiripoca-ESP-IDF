@@ -9,13 +9,10 @@
 #include "esp_adc/adc_cali_scheme.h"
 
 // ENABLE_BMP280
-#include "bmp280.h"
+#include <bmp280.h>
 
 // ENABLE_MPU9250
-#include "ahrs.h"
 #include "mpu9250.h"
-#include "calibrate.h"
-#include "common9250.h"
 
 // ENABLE_GPS
 #include "driver/uart.h"
