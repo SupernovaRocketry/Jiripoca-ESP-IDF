@@ -1,6 +1,6 @@
 #include "global.h"
 
-static const char *TAG = "ADC";
+static const char *TAG_ADC = "ADC";
 
 static void adc_init(adc_oneshot_unit_handle_t *adc_unit_handle, adc_cali_handle_t *adc_cali_handle) {
     adc_oneshot_unit_init_cfg_t unit_config = {.unit_id = VIN_ADC_UNIT, .ulp_mode = ADC_ULP_MODE_DISABLE};
@@ -25,14 +25,14 @@ void task_adc(void *pvParameters) {
         int       raw, voltage_mv;
         esp_err_t err = (adc_oneshot_read(adc_unit_handle, VIN_ADC_CHANNEL, &raw));
         if (err != ESP_OK) {
-            ESP_LOGE(TAG, "ADC read failed: %s", esp_err_to_name(err));
+            ESP_LOGE(TAG_ADC, "ADC read failed: %s", esp_err_to_name(err));
             vTaskDelay(pdMS_TO_TICKS(1000)); // Wait before retrying
             continue;
         }
 
         err = (adc_cali_raw_to_voltage(adc_cali_handle, raw, &voltage_mv));
         if (err != ESP_OK) {
-            ESP_LOGE(TAG, "ADC calibration failed: %s", esp_err_to_name(err));
+            ESP_LOGE(TAG_ADC, "ADC calibration failed: %s", esp_err_to_name(err));
             vTaskDelay(pdMS_TO_TICKS(1000)); // Wait before retrying
             continue;
         }

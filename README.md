@@ -4,18 +4,15 @@ This is firmware for Supernova's flight computers based on ESP-IDF. The goal of 
 
 Supported flight computer models: 
 
-- Jiripoca V5.0 (ESP32-P4)
+- Jiripoca V4.1 (ESP32-S3)
 
 Used peripherals:
 
- - Barometer 1 (BMP390)
- - Barometer 2 (MS5607)
- - IMU (LSM6DSO)
- - Magnetometer (BMM350)
-  - GPS (NEO-M9N)
- - LoRa (SX1262)
- - Temperature Transducer ADC (HX711)
- - SD Card (SDIO)
+ - Barometer (BMP390)
+ - IMU (ICM20948)
+ - GPS (GY-NEO6MV2)
+ - LoRa (E220-900T22D)
+ - SD Card (SPI)
  - LED (GPIO)
  - Buzzer (GPIO)
  - Remove before flight switch (GPIO)

@@ -9,7 +9,11 @@ extern gps_sample_t      gps_sample_g;
 extern bmp390_sample_t   bmp_sample_g;
 extern uint8_t           battery_voltage_g;
 extern file_counter_t    file_counter_g;
+extern _Atomic uint8_t   sys_flags_g;
 extern atomic_bool       lfs_full; // Flag to indicate if LittleFS is full
+
+extern pyro_channel_t pyro_drogue;
+extern pyro_channel_t pyro_main;
 
 /* QUEUE HANDLE*/
 extern QueueHandle_t xEventQueue;
@@ -26,7 +30,7 @@ extern RingbufHandle_t xLFSRingBuf;
 extern SemaphoreHandle_t xI2CSem;
 
 /* MUTEX */
-extern portMUX_TYPE xDATAMutex;
+extern portMUX_TYPE xDATALock;
 extern portMUX_TYPE xBMPMutex;
 extern portMUX_TYPE xGPSMutex;
 extern portMUX_TYPE xICMMutex;
@@ -35,6 +39,7 @@ extern portMUX_TYPE xADCMutex;
 /* TASK HANDLE */
 extern TaskHandle_t xTaskLora;
 extern TaskHandle_t xTaskAcquire;
+extern TaskHandle_t xTaskFlightControl;
 
 /* EVENT HANDLE */
 extern EventGroupHandle_t xInitEventGroup;
@@ -50,6 +55,7 @@ void task_fusion(void *pvParameters);
 void task_bmp(void *pvParameters);
 void task_gps(void *pvParameters);
 void task_acquire(void *pvParameters);
+void task_flight_control(void *pvParameters);
 void task_adc(void *pvParameters);
 void task_log(void *pvParameters);
 void task_sd(void *pvParameters);

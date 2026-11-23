@@ -2,7 +2,7 @@ AlignConsecutiveAssignments: true
 AlignConsecutiveDeclarations: true
 AlignConsecutiveMacros: true
 AlignTrailingComments: true
-ColumnLimit: 120
+ColumnLimit: 140
 BinPackParameters: true
 AllowAllParametersOfDeclarationOnNextLine: false
 IndentWidth: 4

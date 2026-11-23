@@ -44,56 +44,44 @@
 #include "icm20948.h"
 #include "icm20948_i2c.h"
 #include "minmea.h"
-#include "ra01s.h"
 #include "vqf_c.h"
-
-#define BUZZER_GPIO     GPIO_NUM_38
-#define LED_GPIO        GPIO_NUM_15
-#define ALED_GPIO       GPIO_NUM_6
-#define BUTTON_GPIO     GPIO_NUM_0
-#define VIN_ADC_UNIT    ADC_UNIT_1    // ADC1 +
-#define VIN_ADC_CHANNEL ADC_CHANNEL_4 // CH4 = GPIO05
-#define DROGUE_GPIO     GPIO_NUM_47
-#define MAIN_GPIO       GPIO_NUM_48
-#define RBF_GPIO        GPIO_NUM_4
-#define GPS_RX          GPIO_NUM_14
-#define GPS_TX          GPIO_NUM_21
-#define SS              GPIO_NUM_10
-#define I2C_SDA_IO      GPIO_NUM_8
-#define I2C_SCL_IO      GPIO_NUM_9
-#define GPS_UART_NUM    UART_NUM_1
-#define LORA_UART_NUM   UART_NUM_2
 
 #define HIGH 1
 #define LOW  0
 
 /* GPIO */
-#define SPI2_MISO     GPIO_NUM_8
-#define SPI2_CLK      GPIO_NUM_9
-#define SPI2_MOSI     GPIO_NUM_10
-#define MAIN_DEPLOY   GPIO_NUM_15
-#define MAIN_CHARGE   GPIO_NUM_16
-#define DROGUE_DEPLOY GPIO_NUM_18
-#define DROGUE_CHARGE GPIO_NUM_17
-#define BUZZER_GPIO   GPIO_NUM_21
+#define BOOT_GPIO   GPIO_NUM_0
+#define RBF_GPIO    GPIO_NUM_4
+#define VIN_GPIO    GPIO_NUM_5
+#define ALED_GPIO   GPIO_NUM_6
+#define LED_GPIO    GPIO_NUM_15
+#define BUZZER_GPIO GPIO_NUM_38
+#define DROGUE_GPIO GPIO_NUM_47
+#define MAIN_GPIO   GPIO_NUM_48
 
-#define LORA_RESET GPIO_NUM_12
-#define LORA_BUSY  GPIO_NUM_13
-#define LORA_DIO1  GPIO_NUM_14
-#define LORA_CS    GPIO_NUM_20
-#define HX_CLK     GPIO_NUM_37
-#define HX_DOUT    GPIO_NUM_38
-#define SD_DATA0   GPIO_NUM_39
-#define SD_DATA1   GPIO_NUM_40
-#define SD_DATA3   GPIO_NUM_41
-#define SD_DATA2   GPIO_NUM_42
-#define SD_CLK     GPIO_NUM_43
-#define SD_CMD     GPIO_NUM_46
-#define SD_DET     GPIO_NUM_45
-#define SD_PWR     GPIO_NUM_46
+#define I2C_SDA   GPIO_NUM_8
+#define I2C_SCL   GPIO_NUM_9
+#define SPI2_MOSI GPIO_NUM_11
+#define SPI2_CLK  GPIO_NUM_12
+#define SPI2_MISO GPIO_NUM_13
+
+#define SD_CS    GPIO_NUM_10
+#define GPS_TX   GPIO_NUM_14 // UART_RX
+#define GPS_RX   GPIO_NUM_21 // UART_TX
+#define LORA_TX  GPIO_NUM_35
+#define LORA_RX  GPIO_NUM_36
+#define LORA_AUX GPIO_NUM_37 // LoRa Interrupt
+#define LORA_M1  GPIO_NUM_39
+#define LORA_M0  GPIO_NUM_40
+
+/* UART PORT */
+#define GPS_UART_NUM  UART_NUM_1
+#define LORA_UART_NUM UART_NUM_2
+
+#define VIN_ADC_UNIT    ADC_UNIT_1    // ADC1 +
+#define VIN_ADC_CHANNEL ADC_CHANNEL_4 // CH4 = GPIO05
 
 /* SPI CONFIG */
-#define SPI_HOST SPI2_HOST
 #define DMA_CHAN SPI_DMA_CH_AUTO
 
 #define I2C_SPEED 400000 // 400kHz, fast mode
@@ -108,31 +96,7 @@
 
 #define ICM_SAMPLE_RATE_S  0.01f // 100Hz
 #define BMP_SAMPLE_RATE_MS 50    // 20Hz
-#define GPS_SAMPLE_RATE_MS 200   // 5Hz, M8N GPS & GLONASS
-
-// AUMENTAR OS BITS DO status e mudar para estados do fogute melhor e tals
-/*#define TASK_INIT       BIT(0)
-#define SETUP_OK        BIT(1)
-#define FATAL_ERROR     BIT(2)
-#define ARMED           BIT(3)
-#define BOOST           BIT(4)
-#define COAST           BIT(5)
-#define DROGUE_DEPLOYED BIT(6)
-#define MAIN_DEPLOYED   BIT(7)
-#define LANDING         BIT(8)
-#define LANDED          BIT(9)
-*/
-
-/* STATUS FLAGS */
-#define INITIALIZED     BIT(0)
-#define ARMED           BIT(1)
-#define BOOST           BIT(2)
-#define COAST           BIT(3)
-#define DROGUE_DEPLOYED BIT(4)
-#define MAIN_DEPLOYED   BIT(5)
-#define LANDING         BIT(6)
-#define LANDED          BIT(7)
-#define NVS_EDIT        BIT(10)
+#define GPS_SAMPLE_RATE_MS 200   // 5Hz
 
 /* INIT FLAGS */
 // separar estados do foguete e estados de inicialização dos componentes e afins
@@ -153,13 +117,7 @@
 #define EVT_LFS_DONE BIT(1)
 #define EVT_NVS_DONE BIT(2)
 
-#define THRESHOLD_MS 150 // Time threshold for state transitions in ms (e.g. boost to coast, deploy drogue, etc.)
-#define PREPARE_FOR_LANDING_S                                                                                          \
-    5.0f // Time to landing to set LANDING flag in seconds (e.g. if time to landing is less than 5s)
-#define BOOST_THRESHOLD_A  2 * G // Vertical acceleration threshold to detect boost phase in m/s²
-#define COAST_THRESHOLD_A  2 * G // Vertical acceleration threshold to enter coast phase in m/s²
-#define DROGUE_THRESHOLD_V 0.5f  // Vertical velocity threshold to deploy drogue in m/s
-#define MAIN_ALTITUDE      450   // Altitude above initial to deploy main in meters
+#define PREPARE_FOR_LANDING_S 5.0f // Time to landing to set LANDING flag in seconds (e.g. if time to landing is less than 5s)
 
 #define KNOWN_ALTITUDE    715 // m, launch zone altitude
 #define KNOWN_TEMPERATURE 20  // °C, temperature at launch zone
@@ -182,6 +140,25 @@ enum SENSOR_BIT {
     ADC_BIT,
 };
 
+// Flight States
+typedef enum __attribute__((packed)) {
+    STATE_IDLE = 0,
+    STATE_BOOST,
+    STATE_COAST,
+    STATE_DROGUE,
+    STATE_MAIN,
+    STATE_LANDING,
+    STATE_LANDED,
+    STATE_FATAL,
+} flight_state_t;
+
+// Status Flags
+#define STATUS_INITIALIZED     BIT(0)
+#define STATUS_ARMED           BIT(1)
+#define STATUS_DROGUE_DEPLOYED BIT(2)
+#define STATUS_MAIN_DEPLOYED   BIT(3)
+#define STATUS_NVS_EDIT        BIT(4)
+
 // ICM20948 sample buffer
 typedef struct {
     int16_t accel_x, accel_y, accel_z; // @SAVE (LSB)
@@ -194,14 +171,12 @@ typedef struct {
 
 // GPS sample buffer
 typedef struct {
-    float    latitude;     // @SAVE + SEND (°)
-    float    longitude;    // @SAVE + SEND (°)
-    float    altitude;     // @SAVE + SEND (m above known altitude)
-    float    vel_vertical; // @SAVE + SEND (m/s)
-    uint32_t utc_time;     // @INTERNAL (HHMMSS)
-    uint8_t  sAcc;         // @SAVE (Speed accuracy Estimate * 10 in m/s)
-    uint8_t
-        fix; // @SAVE + SEND (GGA fix quality: 0=No Fix, 1=Standard GPS (2D/3D), 2=Differential GPS, 6=Estimated (DR))
+    int32_t latitude;     // @SAVE + SEND (deg * 1e-7, + = N)
+    int32_t longitude;    // @SAVE + SEND (deg * 1e-7, + = E)
+    float   altitude;     // @SAVE + SEND (m above known altitude, hMSL)
+    float   vel_vertical; // @SAVE + SEND (m/s)
+    uint8_t sAcc;         // @SAVE (Speed Accuracy Estimate * 10 in m/s)
+    uint8_t fix;          // @SAVE + SEND (GGA fix quality: 0=No Fix, 1=Standard GPS (2D/3D), 2=Differential GPS, 6=Estimated (DR))
 } gps_sample_t;
 
 // BMP390 sample buffer
@@ -221,9 +196,9 @@ typedef struct {
     gps_sample_t      gps;
     bmp390_sample_t   bmp;
     eskf_t            kf;
+    uint8_t           voltage; // @SAVE + SEND (V * 10, e.g. 33 for 3.3V)
 
-    uint8_t status;  // @SAVE + SEND (Bitfields)
-    uint8_t voltage; // @SAVE + SEND (V * 10, e.g. 33 for 3.3V)
+    _Atomic flight_state_t flight_state; // @SAVE + SEND (Bitfields)
 } data_t;
 
 /*
@@ -232,16 +207,18 @@ typedef struct {
  */
 typedef struct __attribute__((packed)) {
     uint32_t time;
-    float    pressure;
-    float    latitude, longitude;
-    float    gps_altitude, gps_vel_vertical;
-    int16_t  accel_x, accel_y, accel_z;
-    int16_t  gyro_x, gyro_y, gyro_z;
-    int16_t  mag_x, mag_y, mag_z;
-    uint8_t  status;
-    uint8_t  voltage; // V * 10
-    uint8_t  sAcc;    // SAcc * 10
-    uint8_t  fix;
+
+    float   pressure;
+    int32_t latitude, longitude;
+    float   gps_altitude, gps_vel_vertical;
+    int16_t accel_x, accel_y, accel_z;
+    int16_t gyro_x, gyro_y, gyro_z;
+    int16_t mag_x, mag_y, mag_z;
+    uint8_t voltage; // V * 10
+    uint8_t sAcc;    // SAcc * 10
+    uint8_t fix;
+
+    _Atomic flight_state_t flight_state;
 } save_t;
 
 /*
@@ -250,14 +227,16 @@ typedef struct __attribute__((packed)) {
  */
 typedef struct __attribute__((packed)) {
     uint32_t time;
-    float    latitude, longitude;
+
+    int32_t  latitude, longitude;
     uint16_t kf_altitude, kf_apogee; // m * 10 (limited to 6553.5 m)
     int16_t  kf_vel_vertical;        // m/s * 10
     int16_t  q1, q2, q3, q4;         // quaternions * 10 000
     uint8_t  accel;                  // |g| * 10
-    uint8_t  status;
-    uint8_t  voltage; // V * 10
+    uint8_t  voltage;                // V * 10
     uint8_t  fix;
+
+    _Atomic flight_state_t flight_state;
 } send_t;
 
 /* SYSTEM STRUCTURES */
@@ -272,6 +251,12 @@ typedef struct __attribute__((packed)) {
     uint32_t timestamp;  // 4 Bytes
 } file_header_t;         // 8 bytes
 
+typedef struct __attribute__((packed)) {
+    gpio_num_t         gpio;
+    const char        *label;
+    esp_timer_handle_t timer;
+} pyro_channel_t;
+
 /* EVENT STRUCTURES */
 typedef enum __attribute__((packed)) {
     EVT_INIT_READY,   // task_status finished peripheral setup
@@ -279,3 +264,7 @@ typedef enum __attribute__((packed)) {
     EVT_SETUP_FAILED, // system initialization failed
     EVT_ARM,          // system armed
 } status_event_t;
+
+typedef enum __attribute__((packed)) {
+    EVT_INIT_OK = 0,
+} flight_event_t;
